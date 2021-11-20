@@ -1,0 +1,43 @@
+#! /bin/bash
+
+function converter() {
+	# Get the conversion formats
+	read -p "Filetype FROM: " typeFrom 
+	read -p "Filetype TO: " typeTo
+	# Check if an incorrect starting format was given, exit if true
+	[[ -z `ls | grep -E "*.$typeFrom"` ]] && echo "No files matching type $typeFrom, exiting..." && getOut="true" && return
+	# Loop through all files in $PWD matching starting format, converting each
+	for file in *.$typeFrom;
+	do filename="${file%.$typeFrom}";
+		echo -e "Running: ffmpeg -hide_banner -nostats -loglevel warning -y -i "$file" "$filename.$typeTo"";
+		nice -18 ffmpeg -hide_banner -nostats -loglevel warning -y -i "$file" "$filename.$typeTo";
+	done
+	# Alert conversions finished
+	( speaker-test -t sine -f 500 2 > /dev/null)& pid=$! ; sleep 0.4s ; kill -9 $pid 2>/dev/null & wait $pid 2>/dev/null
+	read -p "Files converted, press Enter to continue to removal"
+}
+
+function removeOld() {
+	# If incorrect starting format was given, exit immediately
+	[[ "$getOut" == "true" ]] && return
+	# Show and confirm the current state of the directory prior to removal
+	echo -e "\n\nCurrent Directory:\n$(ls "$PWD" | column)\n"
+	read -p "Do you want to delete the original ($typeFrom) files? (y/N) " confirmDelete
+	# Unless 'y' specifically is given, exit to prevent accidental deletion
+	[[ "$confirmDelete" != "y" ]] && echo "Incorrect Key or 'N' Selected. Not Deleting..." && return
+	# Delete the files, then notify
+	find . -name "*.$typeFrom" -exec rm {} \;
+	echo "Files removed..exiting."
+}
+
+confirmed=false
+while ! $confirmed; do
+	# Show and confirm the current state of the directory
+	echo -e "\nFiles to convert:\n$(ls "$PWD" | column)\n"
+	read -p "Do these files look correct? (y/N) " confirm 
+	# If the directory is where you intend to be, proceed
+	[[ "$confirm" == "y" ]] && confirmed=true && converter && removeOld && break
+	# If the directory is otherwise incorrect, choose N and exit this script
+	[[ "$confirm" == "N" ]] && break
+	echo "Please select \"y\" or \"N\""
+done

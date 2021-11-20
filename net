@@ -1,0 +1,43 @@
+#! /bin/bash
+# This program connects to the internet via nmcli using dmenu for prompts and input.
+# Set up new connection points:
+# vpn:    nmcli con import type openvpn file /path/to/file
+# 	  nmcli con modify <file> +vpn.data username=username
+#
+# ethernet: nmcli con add type ethernet con-name "wired" ifname eno1 --ask
+# wifi: nmcli device wifi connect <access point> --ask
+
+nmcli radio wifi on
+
+function vpnConnect {
+	nordvpn connect $country $city
+}
+
+# Select wired or wifi
+type=$(nmcli device | awk '{print $2}' | grep "[ethernet wifi]" | dmenu -p "Type of connection: ")
+
+# If ethernet, will connect to whichever ethernet cable is plugged in
+if [ $type == "ethernet" ]; then
+	access="wired"
+	typeCon="eno1"
+	nmcli con up $access 
+	nmcli radio wifi off
+
+# Else, connect to a wifi hotspot
+elif [ $type == "wifi" ]; then 
+	nmcli networking off
+	nmcli networking on
+	known="$($1 | dmenu -p "Reconnect to known access point? (y/n):")" # Known wifi?
+	typeCon="wlo1"
+	
+	if [ $known == "y" ]; then 
+		access=$(nmcli con | awk '{print $1}' | dmenu -l 20) #Display then connect to selection
+		nmcli con up "$access"
+	else
+		nmcli dev wifi rescan
+		accessChoice=$( $1 | nmcli device wifi list | dmenu -l 20 ) # Select available points
+		accessChoice="${accessChoice%Infra*}" # Cleans around the access point
+		accessChoice=`echo $accessChoice` # Removes exterior spaces
+		nmcli dev wifi connect "$accessChoice" --ask
+	fi
+fi

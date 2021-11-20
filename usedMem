@@ -1,0 +1,12 @@
+#! /bin/bash
+
+# A memory module 
+
+# Get the memory
+mem=$(free -m | grep Mem: | awk '{print $3}')
+
+if [ "${#mem}" -gt 3 ]; then
+	echo "${mem%???}.${mem:1:2} GB" # regex and color formatting
+else
+	echo "$mem MB"
+fi

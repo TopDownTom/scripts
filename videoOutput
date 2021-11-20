@@ -1,0 +1,62 @@
+#! /bin/bash
+
+# This script utilizes xrandr to select the desired video output configuration and switches audio output accordingly
+
+read -p "Single or Multi display? " singleOrMultiMonitor
+sleep .1
+connectedDevices=($( xrandr --query | awk '/ connected /{print $1}' ))
+laptopScreen=$(xrandr --query | awk '/ primary /{print $1}')
+externalScreen=$(xrandr --query | grep -v " primary " | awk '/ connected /{print $1}')
+
+if [ $singleOrMultiMonitor == "s" ]
+then
+	echo "Which screen would you like to use?"
+	select whichScreen in "${connectedDevices[@]}" Exit;
+	do
+		case $whichScreen in
+			Exit)
+				printf '\n...Exiting, doing nothing...\n\n'
+				break
+				;;
+			*)
+				echo "using $whichScreen"
+				discardedScreen=$(echo ${connectedDevices[@]/$whichScreen})
+				xrandr --output $whichScreen --auto
+				xrandr --output $discardedScreen --off
+				xwallpaper --stretch ~/.pape.png
+				if [ $whichScreen == "$laptopScreen" ]
+				then
+					pacmd set-card-profile 0 output:analog-stereo
+				else
+					pacmd set-card-profile 0 output:hdmi-stereo-extra1
+				fi
+				notify-send -u normal -t 2000 "Moving display to $whichScreen"
+				break
+				;;
+		esac
+	done
+
+elif [ $singleOrMultiMonitor == "m" ]
+then
+	echo "Where do you want the laptop screen relative to the external screen?"
+	possibleRelPositions=( left-of right-of above below same-as )
+	select laptopScreenRelPosition in "${possibleRelPositions[@]}" Exit;
+		do
+			case $laptopScreenRelPosition in
+				Exit)
+					printf '\n...Exiting, no changes made... \n\n'
+					break
+					;;
+				*)
+					echo "Setting laptop screen $laptopScreenRelPosition external monitor"
+					notify-send -u normal "Moving $laptopScreen $laptopScreenRelPosition external monitor"
+					xrandr --output HDMI-2 --auto
+					xrandr --output $laptopScreen --auto
+					xrandr --output $laptopScreen --$laptopScreenRelPosition HDMI-2
+					xwallpaper --stretch ~/.pape.png
+					chooseAudio
+					break
+					;;
+			esac
+		done
+fi

@@ -1,0 +1,12 @@
+#! /bin/bash
+PROGNAME=$(basename $0)
+
+cd $HOME/.config/dmenu
+
+if make; then
+	sudo make install
+	make clean
+else
+#	errorExit "$PROGNAME: Line $LINENO: An error has occurred!"
+	errorExit $PROGNAME
+fi

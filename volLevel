@@ -1,0 +1,4 @@
+#! /bin/bash
+
+# Echo the volume to the path the polybar module volLevel looks to cat. 
+[[ "`pamixer --get-mute`" == "true" ]] && echo Muted || echo `pamixer --get-volume`%

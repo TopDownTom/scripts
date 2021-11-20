@@ -1,0 +1,22 @@
+#! /bin/bash
+
+# This is a simple dmenu based timer.
+
+askTime=$(dmenu -p "Enter a time in minutes:")
+whatFor=$($1 | dmenu -p "Why?: ")
+convert=$( echo "$askTime*60" | bc )
+
+
+while (( $(bc <<< "$convert > 0") ))
+do
+convert=$( echo "$convert-1" | bc ) # Decrease time by 1 second
+sleep 1s 
+done
+
+# When while finishes the time is up and triggers the polybar ipc module
+polybar-msg hook timerNotify 2
+
+# Let me know it's done
+notify-send -u normal -t 3000 "Timer for [ $whatFor ] is up!" 
+( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.2s ; kill -9 $pid 
+( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.2s ; kill -9 $pid 

@@ -1,0 +1,44 @@
+#! /bin/bash
+
+backupDir=($HOME/docs/test-dir $HOME/docs/scripts)
+
+syncFiles () {
+	echo -e "\n\nSyncing over the following:"
+	echo "rsync -av $backupDir $mountPoint" && \
+		echo -e "\nIf done, unmount the device via:\nveracrypt --dismount $mountPoint"
+	exit
+}
+
+echo Select which directory you would like to back up
+select chosenBackupDir in ${backupDir[@]} 'All Dirs' Exit;
+do
+	case $chosenBackupDir in
+		Exit)
+			echo "exit" && break;;
+		'All Dirs')
+			mountPoint=${backupDir[@]}
+			echo $mountPoint && break;;
+		*)
+			echo $chosenBackupDir && break;;
+	esac
+done
+
+mountPoint=($(lsblk | awk '! /veracrypt/{print $7}'))
+
+[ ! -v mountPoint ] && echo -e "\nDrive either not mounted and/or not opened via veracrypt. Find the partition with:\nlsblk \n\nThen run:\nveracrypt --mount /path/to/partition\n\nAfterwards, re-run this script" && exit
+
+[[ ${#mountPoint[@]} -gt 1 ]] && \
+	lsblk | awk '!/nvme/{print $1" "$4" "$7}' && \
+	echo -e "\nPlease select the appropriate mountpoint based on the above info:" && \
+	select mountPoint in "${mountPoint[@]}" Exit;
+	do
+		case "$mountPoint" in
+			Exit)
+				echo -e "\n...Exiting, nothing done...\n\n"
+				stop=1 && break;;
+			*)
+				stop=0 && break;;
+		esac
+	done 
+
+[ -v mountPoint ] && syncFiles

@@ -1,0 +1,250 @@
+########################################
+######     Begin-installation     ######
+########################################
+
+# Verify image signature
+gpg --keyserver-options auto-key-retrieve --verify archlinux-version-x86_64.iso.sig
+
+
+# Alternatively, from an existing Arch Linux installation run:
+pacman-key -v archlinux-version-x86_64.iso.sig
+
+
+# Verify the boot mode
+# I will always be installing as MBR, no need for UEFI and the boot partition. This step un-necessary in most cases.
+ls /sys/firmware/efi/efivars
+
+
+# Ensure your network interface is listed and enabled
+ip link
+
+
+# Configure your network connection:
+# Static IP address
+# Dynamic IP address: use DHCP.
+# Note: The installation image enables dhcpcd for wired network devices boot.
+# Verify connection
+ping archlinux.org
+
+
+# Update the system clock
+timedatectl set-ntp true
+
+
+# Partition the disks. Find device naming scheme
+fdisk -l
+
+
+# If you want to create any stacked block devices for LVM, system encryption or RAID, do it now.
+fdisk /dev/xX
+
+
+# Format the partitions. Use ext4 for both root and home directories.
+mkfs.ext4 /dev/xX
+
+
+# If you created a partition for swap, initialize it with mkswap:
+mkswap /dev/xX
+swapon /dev/xX
+
+
+# Mount the file systems. Mount root to /mnt
+mount /dev/xX1 /mnt
+
+
+# Create any remaining mount points (such as /mnt/home) and mount their corresponding partitions.
+
+
+# Installation
+
+# Update your mirrorlist and put a few United States mirrors at the top of the list.
+# Install only essential packages. Wait to install user packages once the system is functional on its own.
+vim /etc/pacman.d/mirrorlist
+pacstrap /mnt base linux linux-firmware networkmanager stow git grub xorg-server xorg-xinit sudo openssh rxvt-unicode firefox tmux rsync bash-completion
+
+
+# Generate your file system table. Afterwards check /mnt/etc/fstab for errors.
+genfstab -U /mnt >> /mnt/etc/fstab
+
+
+# Chroot into the new environment
+arch-chroot /mnt
+
+
+# Set the time zone and sync the system to the hardware clock 
+hwclock --systohc
+ln -sf /usr/share/zoneinfo/Region/City /etc/localtime
+
+
+# Localization. Uncomment en_US.UTF-8 UTF-8 and other needed locales in /etc/locale.gen, and generate them.
+echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
+locale-gen
+
+
+# Create the locale.conf(5) file, and set the LANG variable accordingly:
+# Add this to the file listed below: LANG=en_US.UTF-8
+vim /etc/locale.conf
+
+
+# Create the hostname file /etc/hostname and add whatever hostname you want to the first line
+echo "archVMtest" > /etc/hostname
+vim /etc/hostname
+
+
+# Add matching entries to hosts(5):
+# If the system has a permanent IP address, it should be used instead of 127.0.1.1.
+echo "127.0.0.1 localhost" > /etc/hosts
+echo "::1 localhost" >> /etc/hosts
+
+
+# Initramfs
+# Creating a new initramfs is usually not required, mkinitcpio was run on installation of the kernel package with pacstrap.
+# For LVM, system encryption or RAID, modify mkinitcpio.conf(5) and recreate the initramfs image:
+mkinitcpio -P
+
+
+# Boot loader (i use grub for this in MBR format. Install to the disk, NOT a partition)
+grub-install --target=i386-pc /dev/xX
+
+
+# Generate the main grub config file
+grub-mkconfig -o /boot/grub/grub.cfg
+
+
+# Set the root password
+passwd
+
+
+# Install the other packages
+cat /path/to/pkglist.txt | sudo pacman -Syu --needed -
+
+
+# Exit the chroot environment 
+exit
+
+
+# Unmount all partitions
+umount -R /mnt
+
+
+# Poweroff. Remove the installtion media then power on. Your system should boot to grub. Congrats!
+
+
+########################################
+######      Post-installation     ######
+########################################
+
+# Log in with root
+# Enable networking
+systemctl enable --now NetworkManager
+
+
+# Get your system up to date and investigate any errors
+pacman -Syyyu
+
+
+# Add users
+useradd -m -g users -G wheel <user>
+
+
+# Set the user's password
+passwd <user>
+
+
+# Add <user> to sudoers:
+visudo
+
+
+# Exit the root user then log in to the user to verify functionality
+# Optionally, reboot to ensure everything is still working as intended. Log in as user on reboot.
+
+
+# Ensure the timezone is set correctly
+ln -sf /usr/share/zoneinfo/Region/City /etc/localtime
+
+
+# If migrating from an old setup copy the pacman cache to this new machine.
+rsync -av /path/to/old /var/cache/pacman/pkg
+
+
+# Set up ssh keys
+ssh-keygen
+
+
+# Add your key to github
+
+
+# Get the config files for your system. If your new machine is closer in setup to the thinkpad or desktop choose the
+# correct branch.
+git clone git@github.com:TopDownTom/dotfiles.git $HOME/.files
+cd $HOME/.files
+git checkout <desired branch>
+rm $HOME/.bashrc
+stow -vt ~ *
+
+# Point vim to use my config
+sudo rm /usr/bin/vi
+sudo ln -s /usr/bin/nvim /usr/bin/vi
+sudo -i
+sudo echo "source /home/tom/.files/vim/.config/vim/vimrc" >> /etc/vimrc
+exit
+
+git clone git@github.com:TopDownTom/scripts.git $HOME/docs/scripts
+cd $HOME/docs/scripts
+git checkout <desired branch> 
+
+
+# Install fonts
+mkdir -p $HOME/dl/builds
+cd $HOME/dl/builds
+cp $HOME/.files/packagedGoods/DaddyTimeMono.zip $HOME/dl/builds
+sudo mkdir /usr/share/fonts/DaddyTimeMono
+sudo unzip -o DaddyTimeMono.zip -d /usr/share/fonts/DaddyTimeMono
+
+
+# Deploy the config files. Run first with -n flag to ensure everything looks right. Then run it again without -n if it does.
+# Stow can be a bit tricky, you may need to do this one at a time. Also, Firefox will not work for userChrome because the
+# profile directory is a randomString.default-release so this will need to be updated to the new directory once Firefox
+# is installed.
+stow -nvt ~ *
+
+
+# Install yay
+mkdir $HOME/dl/builds/yay
+git clone https://aur.archlinux.org/yay.git $HOME/dl/builds/yay
+cd $HOME/dl/builds/yay
+makepkg -si
+
+
+# Install polybar
+yay -Syu polybar
+# Run polybar
+polyReload
+
+
+# Install pydflatex
+yay -Syu pydflatex
+
+
+# Exit then re-login with user and things should work
+
+
+# If things don't work from here, investigate. This could be for a variety of reasons. Likely, if you've made it this far
+# though the installation went okay and its a matter of tweaking configs or whatever.
+
+
+
+# Configuring Firefox
+move $HOME/.files/homeDirFiles/.mozilla/firefox/*.default-release/chrome to whatever ~/.mozilla/firefox/*.default-release you have for your current install
+in about:config - change toolkit.legacyUserProfileCustomizations.stylesheeets to true
+make changes to View > Toolbars > Customize...
+about:config - media.peerconnection.enabled -> false
+
+
+# Install protonvpn then configure it
+sudo pip3 install protonvpn-cli 
+
+#########
+# TO DO #
+#########
+- Do some more run-throughs with the frequently updated package list 

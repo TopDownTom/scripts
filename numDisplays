@@ -1,0 +1,9 @@
+#! /bin/bash
+
+# Set DISPLAYi env variable for each connected monitor
+# This is used primarily to distribute i3 workspaces to different monitors
+connectedDisplays=($(xrandr | awk '/ connected /{print $1}'))
+for ((i = 1; i < ${#connectedDisplays[@]}; i++));
+do
+	export DISPLAY$i="${connectedDisplays[$i]}"
+done

@@ -1,0 +1,38 @@
+#! /bin/bash
+
+# This is a simple script to help automate the youtube-dl process.
+# Comments are a bit unnecessary because each line is almost self-explanatory
+
+url=$($1 | dmenu -p "Paste URL:")
+pickFormat=$(youtube-dl -F $url | dmenu -l 30)
+formatType=$(echo $pickFormat | awk '{print $1}')
+playlist=$($1 | dmenu -p "Playlist? (y/n):")
+fileType=$(echo $pickFormat | awk '{print $2}')
+ytTitle=$( youtube-dl -e $url )
+
+if [ $playlist == "y" ]; then
+	youtube-dl -f $formatType -o "%(title)s.$fileType" $url
+else
+	name=$($1 | dmenu -p "Change from: [[ $ytTitle ]] (y/n): ")
+	if [ $name == "y" ]; then
+		title=$($1 | dmenu -p "From: [[ $ytTitle ]] To:")
+		youtube-dl -f $formatType -o "$title.$fileType" $url
+		name="$title"
+		convert=$( $1 | dmenu -p "Do you want to convert to an mp3? (y/n):" )
+
+		if [ $convert == "y" ]; then
+			ffmpeg -y -i "$name.$fileType" "$name.mp3"
+		fi
+		rm "$name".$fileType
+
+	else
+		youtube-dl -f $formatType -o "%(title)s.$fileType" $url
+		name="%(title)s"
+	fi
+fi
+
+#convert=$( $1 | dmenu -p "Do you want to convert to an mp3? (y/n):" )
+#
+#if [ $convert == "y" ]; then
+#	dirParse
+#fi

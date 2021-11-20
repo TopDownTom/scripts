@@ -1,0 +1,13 @@
+#! /bin/bash
+# CPU Speed Module for Polybar
+
+speed="$(echo $(grep "^[c]pu MHz" /proc/cpuinfo | awk '{print $4}') | sed 's/ /+/g' | bc)"
+#speed=$(echo $(awk 'tolower($0) ~ /cpu mhz/ {print $4}' /proc/cpuinfo) | sed 's/ /+/g' | bc)
+numCores=$(grep -c ^processor /proc/cpuinfo)
+speed=$( echo $speed/$numCores |bc )
+
+if [ "${#speed}" -gt 3 ]; then
+	echo "${speed%???}.${speed:1:2} GB"
+else
+	echo "$speed MB"
+fi

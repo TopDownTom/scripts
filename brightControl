@@ -1,0 +1,38 @@
+#! /bin/bash
+
+# Brightness value
+outFile="/sys/class/backlight/intel_backlight/brightness"
+maxBrightness=$( cat /sys/class/backlight/intel_backlight/max_brightness )
+lvl=$( cat $outFile )
+num='^[0-9]+$'
+
+# Echo the appropriate newly incremented brightness level into $lvl depending on the argument passed when calling this
+# script (see i3 config media keys section)
+
+# Check if input is a specific number, if true set to specific value (%).
+if [[ $1 =~ $num ]]; then
+	lvl=$( echo "$1*$maxBrightness/100" | bc ) 
+	echo "$lvl" > $outFile
+else # increment
+	if [ $1 == "up" ]; then
+		lvl=$(( $lvl + 225 ))
+		if [ $lvl -le $maxBrightness ]; then
+			echo "$lvl" > $outFile
+		else
+			lvl=$maxBrightness
+			echo $lvl > $outFile
+		fi
+	else
+		lvl=$(( $lvl - 225 ))
+		if [ $lvl -ge 0 ]; then
+			echo "$lvl" > $outFile
+		else
+			lvl=0
+			echo "$lvl" > $outFile
+		fi
+	fi
+fi
+
+lvlPercent=$( echo "$lvl/$maxBrightness*100" | bc -lq )
+lvlPercent="${lvlPercent%.*}%"
+notify-send -u normal -t 150 "$lvlPercent"

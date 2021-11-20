@@ -1,0 +1,56 @@
+#! /bin/bash
+
+# Calculate a password's entropy, how many combinations of characters your password is,
+# and how many attempts it would take an attacker to guess your password correctly on average.
+# Note: this assumes US English alphabet (26 chars)
+
+# Inspired by: https://www.itdojo.com/a-somewhat-brief-explanation-of-password-entropy
+
+# Get the password from the user
+read -s -p "Enter password: " pw
+
+# Initialize variables
+pwLen=${#pw} # password length
+pi=[] # empty array. p[i] is the probability of choosing the i'th character from within its character space. 1/charSpace
+h=0 # entropy
+totCharSpace=0 # total character space occupied by your password string
+
+# Check each character in the provided password
+for i in `seq 1 $pwLen`
+do
+	# Match the appropriate character type, and set the "character space" each character resides in
+	# Upper/Lower case (26 assuming US alphabet): a-zA-Z
+	# Digits (10): 0-9
+	# Punctuation (32): ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+	#
+	# Note: we lose two possible characters by preventing spaces and spaces, but this doesn't significantly affect our
+	# entropy calculation or total possible entropy
+	[[ "${pw:$i-1:1}" =~ [[:blank:]] ]] && printf "\nPassword must not contain tabs or spaces, try again.\n" && exit 1
+	[[ "${pw:$i-1:1}" =~ [[:upper:]] ]] && charSpace=26 && hasUpper=1 && pi[i]=0.03846
+	[[ "${pw:$i-1:1}" =~ [[:lower:]] ]] && charSpace=26 && hasLower=1 && pi[i]=0.03846
+	[[ "${pw:$i-1:1}" =~ [[:digit:]] ]] && charSpace=10 && hasDigit=1 && pi[i]=0.1
+	[[ "${pw:$i-1:1}" =~ [[:punct:]] ]] && charSpace=32 && hasPunct=1 && pi[i]=0.03125
+
+	# Calc the entropy of this character, adding it to the previous total entropy of the string
+	# h = - sum1->n (p[i] * log2(p[i]))
+	for j in `seq 1 $charSpace`
+	do
+		iter=$(echo "-${pi[$i]}*(l(${pi[$i]})/l(2))" | bc -l)
+		h=$(echo "$h+$iter" | bc -l)
+	done
+done
+
+# Calc total character space, adding to total only once so long as at least one character matches
+[[ $hasUpper == 1 ]] && ((totCharSpace+=26))
+[[ $hasLower == 1 ]] && ((totCharSpace+=26))
+[[ $hasDigit == 1 ]] && ((totCharSpace+=10))
+[[ $hasPunct == 1 ]] && ((totCharSpace+=32))
+
+# Calc total number of combinations your password could be && avg number of attempts to guess correctly
+numComb=$(echo "$totCharSpace^$pwLen" | bc -l)
+numAttempts=$(echo "$numComb/2" | bc -l)
+
+# Display the calculated info
+printf "\nTotal Number of Combinations: %0.2e\n" $numComb
+printf "Avg Attempts to Guess Correctly: %0.2e\n" $numAttempts
+printf "Bits of Entropy: %0.2f\n" $h

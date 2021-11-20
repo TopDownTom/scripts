@@ -1,0 +1,7 @@
+#! /bin/bash
+# Restarts the urxvt daemon to apply the new color changes. Must have the config-reload perl extension enabled.
+# See https://github.com/regnarg/urxvt-config-reload for details.
+
+themeChoice=$($1 | ls -A ~/.colors/ | dmenu -l 10 -p "Which Theme Would you Like?:")
+
+cat ~/.colors/$themeChoice > ~/.Xres-theme && xrdb -load ~/.Xres-theme && kill -1 `pidof urxvtd` && i3-msg restart

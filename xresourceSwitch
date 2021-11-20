@@ -1,0 +1,15 @@
+#! /bin/bash
+
+# This is a tool for switching different .Xresource colorschemes. 
+# Will try to add functionality with pywal where it seems necessary.
+
+# Select the theme name
+schemeChoice=$( $1 | ls $HOME/.colors | dmenu -l 15 -p "Please Select A .Xresource File:" )
+
+# Move the theme to .Xresources
+rsync -av $HOME/.colors/$schemeChoice $HOME/.Xresources
+
+# Merge the new file into the xresources database, then restart urxvt-daemon to apply the new colorscheme to all open child terminals. Then restart i3 to apply all colors where they should be. 
+xrdb merge $HOME/.Xresources
+kill -1 $( pidof urxvtd )
+i3-msg restart

@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# default monitor is LVDS
+MONITOR=LVDS
+#Uses xrandr to turn on HDMI at auto resolution and turn off LVDS
+function ActivateHDMI {
+    xrandr --output HDMI-0 --auto --output LVDS --off
+    MONITOR=HDMI-0
+}
+#Uses xrandr to turn off HDMI then turn on LVDS at automatic resolution
+function DeactivateHDMI {
+    xrandr --output HDMI-0 --off --output LVDS --auto
+    MONITOR=LVDS
+}
+# functions to check if HDMI is connected and in use
+function HDMIActive {
+    [ $MONITOR = "HDMI-0" ]
+}
+function HDMIConnected {
+	! xrandr | grep "^HDMI-0" | grep disconnected > /dev/null
+}
+
+
+# actual script
+while [ true ] 
+do
+
+#If monitor is not set to HDMI but cable is connected
+    if ! HDMIActive && HDMIConnected
+    then
+	ActivateHDMI
+	feh --bg-max --randomize $HOME/pictures/MiscWG
+#        bash $HOME/tools/movesinks # move the audio sinks to reflect the correct source
+    fi
+
+#If monitor set to HDMI but cable is not connected
+    if HDMIActive && ! HDMIConnected
+    then
+	DeactivateHDMI
+	feh --bg-max --randomize $HOME/pictures/MiscWG
+#        bash $HOME/tools/movesinks
+    fi
+
+#If monitor set to LVDS and HDMI is not connected
+    if ! HDMIActive && ! HDMIConnected
+    then
+	DeactivateHDMI
+	feh --bg-max --randomize $HOME/pictures/MiscWG
+#        bash $HOME/tools/movesinks
+    fi
+exit
+done

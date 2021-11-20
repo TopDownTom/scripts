@@ -1,0 +1,26 @@
+#! /bin/bash
+# This script creates three backups of installed packages both from repos and the AUR before removing the oldest backup 
+# of each.
+
+# Define where to put the backups
+backupDir='/backup/pacman'
+# Count the number of backup files 
+backupNum=$( echo "$(ls $backupDir | wc -l)+1" | bc )
+
+# Write contents of pacman queries to files
+function backUpPackages {
+	pacman -Qqen > $backupDir/"pkgList-backup-$(date +%Y%m%d-%H%M%S)"
+	pacman -Qqem > $backupDir/"aurList-backup-$(date +%Y%m%d-%H%M%S)"
+}
+
+if [ $backupNum -lt 7 ]; then # If less than 3 of each file
+	backUpPackages
+elif [ $backupNum -ge 7 ]; then # If there would be more than 3, delete the oldest and create new ones
+	rm $backupDir/$(ls $backupDir | grep aur | head -n1)
+	rm $backupDir/$(ls $backupDir | grep pkg | head -n1)
+	backUpPackages
+else
+	notify-send -u critical "$(echo -e "There's a problem with the pacman packages backup script! \n \
+		Please see $backupDir \n \
+		Or the script located in $HOME/docs/scripts")"
+fi

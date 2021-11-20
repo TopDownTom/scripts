@@ -1,0 +1,31 @@
+#! /bin/bash
+
+# Download video files with the alias ytpv, which is a 1080p video-only file.
+# Download audio files with the alias ytpm, which is a m4a audio-only file.
+# Ensure there is a directory 'res' to put the resulting combined file.
+# If you fear space restrictions, uncomment the remove commands below to remove as you loop.
+
+[[ ! -d ./res ]] && mkdir res
+
+IFS=$'\n' # split on newline
+set -o noglob
+videoFiles=($(ls | grep mp4 | sed 's/-video//'))
+audioFiles=($(ls | grep m4a))
+len=$(( ${#videoFiles[@]} - 1 ))
+if [ $len == 0 ]; then
+	for i in {0..0}
+	do
+	echo Running: ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
+        ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
+#	echo removing "${videoFiles[$i]}-video" && rm "${videoFiles[$i]}-video"
+#	echo removing "${audioFiles[$i]}" && rm "${audioFiles[$i]}"
+done
+else
+	for i in {0..$len}
+	do
+	echo Running: ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
+        ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
+#	echo removing "${videoFiles[$i]}-video" && rm "${videoFiles[$i]}-video"
+#	echo removing "${audioFiles[$i]}" && rm "${audioFiles[$i]}"
+done
+fi

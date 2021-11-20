@@ -1,0 +1,7 @@
+#! /bin/bash
+
+cd $HOME/.config/st
+
+make
+sudo make install
+make clean

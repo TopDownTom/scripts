@@ -1,0 +1,20 @@
+#! /bin/bash
+
+choice=($(xrandr --query | grep -w "connected" | awk '{print $1}'))
+primaryScreen=$(xrandr --query | grep primary | awk '{print $1}')
+
+printf 'Select Audio Playback Device:\n'
+select screenChoice in ${choice[@]} Exit;
+do
+	case $screenChoice in
+		Exit)
+			printf '\n...Exiting, doing nothing...\n\n' && break ;;
+		*)
+			screenChoice=$screenChoice && break ;;
+	esac
+done
+
+if [ $screenChoice != "" ] && [ $screenChoice != "Exit" ]; then
+	[[ $screenChoice == $primaryScreen ]] && audioOutput="output:analog-stereo" || audioOutput="output:hdmi-stereo-extra1"
+	pacmd set-card-profile 0 $audioOutput
+fi

@@ -1,0 +1,23 @@
+#! /bin/bash
+
+external=$( xrandr -q | grep -v "primary" | grep -w "connected" | awk '{print $1}' )
+resolution=($( xrandr -q | grep [0-9]x[0-9] | grep -v "primary" | tail -n +2 | awk '{print $1}' ))
+
+echo "Please select a resolution for SCREEN: "
+select res in "${resolution[@]}" Exit;
+do
+	case $res in
+		Exit)
+			printf '\n...Exiting, no changes to resolution made... \n\n'
+		       	break
+			;;
+		*)
+#			printf '\nChoosing res: %s\n' "$res"
+			notify-send "Changing External Resolution To: $res"
+			printf 'Setting SCREEN to %s'"$res"
+			xrandr --output $external --mode $res
+			echo
+			break
+			;;
+	esac
+done

@@ -1,0 +1,21 @@
+#! /bin/bash
+
+# The specifics of this naming convention is a product of how I save music files and will vary depending on your needs.
+# This changes the form: /home/user/Music/Artist/Album/Song.filetype ---> Artist - Song
+
+file="$(cmus-remote -Q | grep 'file ' | awk '{$1=""; print $0}' | cut -d' ' -f 2-)" # get file playing
+
+artist="${file##*music/}" # remove everything up through Music/
+artist="${artist%%/*}" # remove everything between $artist and through to the last /
+song="${file##*/}" # remove everything up through the last /
+song="${song%.*}" # remove the filetype .filetype
+playing="$artist - $song" # append Artist - Song
+playerStatus="$(cmus-remote -Q | grep status | awk '{print $2}')" # get player status
+
+if [ $playerStatus = "playing" ] || [ $playerStatus = "paused" ]; then
+	echo $playing && echo # define script output && set blank first echo statement for i3blocks
+	[[ $playerStatus = "playing" ]] && echo "#e69809" || echo "#b3b3b3" # if playing orange, paused grey
+	pkill -SIGRTMIN+1 i3blocks
+else
+	echo "" # if cmus not running, display nothing
+fi

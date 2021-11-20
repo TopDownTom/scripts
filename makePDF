@@ -1,0 +1,26 @@
+#!/bin/bash
+# This script is called in a Vim function to compile the current document. See vimrc.
+
+file=${1%.*}
+
+#If a latex 'build' directory does not exist, create it. This helps keep the directory clean of all the compiled files.
+[[ -d build ]] || mkdir -p build
+
+#This helps keep the main directories clean of `unnecessary' files.
+function moveLogs { 
+	mv $file.aux build
+	mv $file.fls build
+	mv $file.log build
+	mv $file.pdf build
+}
+
+#Check if a pdf of the file is already open. Zathura supports live-refreshing.
+if ps -aux | grep -v grep | grep "$PDFVIEWER $PWD/build/$file.pdf"
+then
+	pdflatex $file.tex
+	moveLogs
+else
+	pdflatex $file.tex
+	moveLogs
+	zathura $PWD/build/$file.pdf &
+fi

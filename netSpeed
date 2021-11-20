@@ -1,0 +1,14 @@
+#! /bin/bash
+
+declare -a bytes
+
+count=0
+while [ $count -lt 5 ]
+do
+#	mapfile -t bytes < <( cat /sys/class/net/enp24s0/statistics/rx_bytes )
+	bytes+=( `cat /sys/class/net/enp24s0/statistics/rx_bytes` )
+	echo ${bytes[@]}
+	echo $count
+	sleep 1
+	(( count++ ))
+done

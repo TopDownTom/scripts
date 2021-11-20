@@ -1,0 +1,6 @@
+#! /bin/bash
+
+cd $HOME/.config/st
+listPatches=$( ls *.diff | dmenu -l 20 -p "Please Select A Patch To Apply: " )
+
+echo $listPatches

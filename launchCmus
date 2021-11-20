@@ -1,0 +1,12 @@
+#! /bin/bash
+
+# Uses i3-msg to open cmus if there isn't one running already, otherwise pauses/plays the music per normal operation
+
+if pgrep -x "cmus" > /dev/null
+then
+	cmus-remote --pause
+else
+	i3-msg -t run_command 'exec urxvtc -name cmus -e cmus' # launches cmus in scratchpad (see i3/config)
+	cmus-remote --pause
+fi
+exit
