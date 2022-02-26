@@ -5,7 +5,7 @@
 # This script assumes at least one battery in your laptop will be BAT0
 
 if [ -d "/sys/class/power_supply/BAT0" ]; then
-	echo `acpi -b | awk '{print $2$4}' | tr -d ,` && echo "blank"
+	echo `acpi -b | grep -e "[0-9]*%" -o` && echo "blank"
 	[[ $(acpi -b | awk '!/Unknown/{print $3}') == "Discharging," ]] && echo "#ff0000" || echo "#33cc33"
 	# Alert if the total of all battery capacities is less than the set lower limit
 	[[ $(echo "$(cat /sys/class/power_supply/BAT*/capacity | sed 's/$/+/' | tr -d '\n' | sed 's/.$//')" | bc) -le 10 ]] && notify-send -u critical "Batteries below 10%!"
