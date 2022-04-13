@@ -1,0 +1,31 @@
+#! /bin/bash
+
+date_now=$(date "+%F-%T")
+
+[ ! -d $HOME/videos/webcam_record/ ] && mkdir $HOME/videos/webcam_record/
+
+ffmpeg \
+-y \
+-f v4l2 \
+-video_size 1280x720 \
+-framerate 60 \
+-i /dev/video0 \
+-f pulse \
+-i default \
+-c:v libx264 \
+-preset ultrafast \
+-c:a aac \
+$HOME/videos/webcam_record/webcam-${date_now}.ts &
+echo $! > /tmp/recordingpid
+sleep 3
+mpv $HOME/videos/webcam_record/webcam-${date_now}.ts &
+echo $! >> /tmp/recordingpid-mpv
+
+#ffmpeg \
+#-rtbufsize 702000k \
+#-i /dev/video0 \
+#-video_size 1280x720 \
+#-vcodec libx264 \
+#-preset ultrafast \
+#-f mpegts \
+#"udp://127.0.0.1:8080"
