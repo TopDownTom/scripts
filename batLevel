@@ -5,7 +5,7 @@
 # This script assumes at least one battery in your laptop will be BAT0
 
 if [ -d "/sys/class/power_supply/BAT0" ]; then
-  combinedLevels=$(echo "$(cat /sys/class/power_supply/BAT*/capacity | sed 's/$/+/' | tr -d '\n' | sed 's/.$//')" | bc)
+  combinedLevels=$(echo "$(cat /sys/class/power_supply/BAT*/capacity | sed 's/$/+/' | tr -d '\n' | sed 's/.$//')" | sed 's/^/(/;s/$/)/' | xargs -i echo "{} / 200 * 100" | bc -ql | xargs printf "%.0f")
 	echo "$combinedLevels%" && echo "blank"
   # Check if discharging
   acpi -b | grep Discharging
@@ -13,7 +13,7 @@ if [ -d "/sys/class/power_supply/BAT0" ]; then
   dischargeState=$(echo $?)
 	[[ $dischargeState -lt 1 ]] && echo "#000000" || echo "#33cc33"
 	# Alert if the total of all battery capacities is less than the set lower limit
-	[[ $combinedLevels -le 10 ]] && notify-send -u critical "Batteries below 10%!"
+	[[ $(echo "$combinedLevels < 10" | bc) -eq 1 ]] && notify-send -u critical "Batteries below 10%!"
 else
 	echo
 fi
