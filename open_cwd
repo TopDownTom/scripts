@@ -13,7 +13,7 @@ window_title=$(xprop -id $current_focused_window_id | sed -ne 's/WM_NAME(STRING)
 preferred_cwd=$(echo $window_title | sed -e 's/.*://')
 
 # expand ~
-preferred_cwd="${preferred_cwd//\~/$HOME}"
+preferred_cwd=${preferred_cwd//\~/$HOME}
 
 # if path points to a valid directory, pass it to gnome-terminal
-[[ -d "$preferred_cwd" ]] && ARGS="$ARGS -cd $preferred_cwd" && $TERMINAL $ARGS $*
+[[ -d "$preferred_cwd" ]] && $TERMINAL -cd "$preferred_cwd"
