@@ -1,10 +1,17 @@
 #! /bin/bash
 
-script_folder="$HOME/docs/scripts"
-script_file="$script_folder/$1"
-# This auto generates a bash script and makes it executable. 
+function userHelp {
+  echo -e "\nuse: scriptGen <filename>"
+}
 
-script_file="$HOME/docs/scripts/$1"
+[[ -z $1 ]] && echo "You must provide a filename" && userHelp && exit 1
+[[ "$1" == "-h" ]] && userHelp && exit 0
+
+script_folder="$SCRIPT_DIR"
+script_file="$script_folder/$1"
+# This auto generates a bash script and makes it executable.
+
+#script_file="$HOME/docs/scripts/$1"
 
 if [[ -f $script_file ]]; then
 	echo "File Already Exists" # Check if a file with that name exists in $HOME/Tools
