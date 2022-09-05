@@ -6,5 +6,5 @@
 curl -s ifconfig.me | grep -i Error: && echo "ifconfig.me error" || \
 
 if [ "$(ping -4 -c1 8.8.8.8)" ]; then
-	[[ "$(nmcli c s | grep tun)" ]] && echo "T: `protonvpn-cli status | awk '/Server:/ || /IP:/ {print $2 " "}' | tr -d '\n'`" || echo `curl ifconfig.me`
+	[[ "$(nmcli c s | grep tun)" ]] && echo "T: `protonvpn-cli status | awk '/Server:/ || /IP:/ {print $2}' | tr -d '\n'`" || echo `curl ifconfig.me`
 fi
