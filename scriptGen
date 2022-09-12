@@ -11,7 +11,7 @@ script_folder="$SCRIPT_DIR"
 script_file="$script_folder/$1"
 # This auto generates a bash script and makes it executable.
 
-#script_file="$HOME/docs/scripts/$1"
+#script_file="$SCRIPT_DIR/$1"
 
 if [[ -f $script_file ]]; then
 	echo "File Already Exists" # Check if a file with that name exists in $HOME/Tools

@@ -1,6 +1,6 @@
 #! /bin/bash
 
-backupDir=($HOME/docs/test-dir $HOME/docs/scripts)
+backupDir=($HOME/docs/test-dir $SCRIPT_DIR)
 
 syncFiles () {
 	echo -e "\n\nSyncing over the following:"
@@ -39,6 +39,6 @@ mountPoint=($(lsblk | awk '! /veracrypt/{print $7}'))
 			*)
 				stop=0 && break;;
 		esac
-	done 
+	done
 
 [ -v mountPoint ] && syncFiles

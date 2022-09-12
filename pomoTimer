@@ -3,34 +3,34 @@
 # This is a simple Pomodoro Timer, enter the number of sessions you want to study for.
 # Assumes 4 sessions requires a long break, will prompt once the number of sessions is complete asking if you want to finish or take the long break before studying again.
 # Must have dmenu installed and line 57 must reflect the /path/to/file of this script.
-# It is best if run via a keyboard shortcut so you don't tie up a terminal. 
+# It is best if run via a keyboard shortcut so you don't tie up a terminal.
 
 # Num Sessions
 pomSessions=$( $1 | dmenu -p "How many study sessions would you like?:" )
 longBreak=$( $1 | dmenu -p "Do you want to take a break after those sessions? (y/n):" )
 
-while (( $(bc <<< "$pomSessions > 0") )) 
+while (( $(bc <<< "$pomSessions > 0") ))
 do
 
 # Convert to seconds
 restTimer=$(( 5 * 60 ))
 studyTimer=$(( 25 * 60 ))
-( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid 
+( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid
 notify-send -u low "Begin study session. $pomSessions remaining."
 
-	while (( $(bc <<< "$studyTimer > 0") )) 
+	while (( $(bc <<< "$studyTimer > 0") ))
 	do
-		studyTimer=$( echo "$studyTimer-1" | bc ) # count down the study time 
+		studyTimer=$( echo "$studyTimer-1" | bc ) # count down the study time
 		sleep 1s
 	done
 
 pomSessions=$( echo "$pomSessions-1" | bc ) # count down sessions
 
 if [ $pomSessions = 0 ]; then # if that was the final session don't rest
-	break 
+	break
 fi
 
-( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid 
+( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid
 notify-send -u low "Study time is up, rest for 5 minutes."
 
 	while (( $(bc <<< "$restTimer > 0") ))
@@ -52,13 +52,13 @@ if [ $longBreak == "y" ]; then
 		longBreakDuration=$( echo "$longBreakDuration-1" | bc )
 		sleep 1s
 	done
-	( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid 
+	( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid
 	notify-send -u low "Your long break has finished, see dmenu prompt to start another set of sessions."
-	bash ~/Tools/pomoTimer # runs this script again. 
+	bash $SCRIPT_DIR/pomoTimer # runs this script again.
 
 else
-	( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.1s ; kill -9 $pid 
-	( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.1s ; kill -9 $pid 
+	( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.1s ; kill -9 $pid
+	( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.1s ; kill -9 $pid
 	notify-send -u low "You have completed all of your study sessions."
 
 fi
