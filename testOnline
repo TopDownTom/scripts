@@ -1,0 +1,12 @@
+#! /bin/bash
+
+# https://stackoverflow.com/questions/929368/how-to-test-an-internet-connection-with-bash#answer-14939373
+# Added exit codes to explicitly give an indicator of script status
+# 0 - success; 1 - cat failed; 2 - not online
+
+# test for network conection on each interface
+for interface in $(ls -r /sys/class/net/ | grep -v lo);
+do
+  [[ $(cat /sys/class/net/$interface/carrier 2> /dev/null) = 1 ]] && onLine=1
+done
+[[ ! $onLine ]] && exit 2 || exit 0

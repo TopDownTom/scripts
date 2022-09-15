@@ -1,10 +1,19 @@
 #! /bin/bash
 
 # Run git fetch for .git directories if last fetch was longer than fetchLimit
-if [ -d "$PWD"/.git ]; then
+
+# exit codes:
+# 0 - time diff not fetchLimit, exiting; 2 - not online (see testOnline script)
+
+# first check if this is a .git root dir, and we've fetched at least once
+if [ -f "$PWD"/.git/FETCH_HEAD ]; then
+  testOnline; [[ $? -gt 0 ]] && exit 2
+  # get the time now as well as the modify time on FETCH_HEAD
   timeNow=$(date +%s)
   lastFetchTime=$(stat --format=%Y "$PWD"/.git/FETCH_HEAD)
+  # set integer vars
   declare -i fetchLimit=600
   declare -i timeDiff=$(echo "$timeNow-$lastFetchTime" | bc -l)
+  # check if diff is less than limit and if so exit 0, otherwise fetch
   [[ "$timeDiff" -lt "$fetchLimit" ]] && exit 0 || { echo "git fetching..."; git fetch; }
 fi
