@@ -5,6 +5,7 @@
 # Exit this script if the site is unreachable, which happens periodically
 curl -s ifconfig.me | grep -i Error: && echo "ifconfig.me error" || \
 
-if [ "$(ping -4 -c1 8.8.8.8)" ]; then
+testOnline
+if [ $? -eq 0 ]; then
 	[[ "$(nmcli c s | grep tun)" ]] && echo "T: `protonvpn-cli status | awk '/Server:/ || /IP:/ {print $2}' | tr -d '\n'`" || echo `curl ifconfig.me`
 fi
