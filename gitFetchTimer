@@ -1,0 +1,10 @@
+#! /bin/bash
+
+# Run git fetch for .git directories if last fetch was longer than fetchLimit
+if [ -d "$PWD"/.git ]; then
+  timeNow=$(date +%s)
+  lastFetchTime=$(stat --format=%Y "$PWD"/.git/FETCH_HEAD)
+  declare -i fetchLimit=600
+  declare -i timeDiff=$(echo "$timeNow-$lastFetchTime" | bc -l)
+  [[ $timeDiff -lt $fetchLimit ]] && exit 0 || { echo "git fetching..."; git fetch; }
+fi
