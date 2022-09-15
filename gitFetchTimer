@@ -6,5 +6,5 @@ if [ -d "$PWD"/.git ]; then
   lastFetchTime=$(stat --format=%Y "$PWD"/.git/FETCH_HEAD)
   declare -i fetchLimit=600
   declare -i timeDiff=$(echo "$timeNow-$lastFetchTime" | bc -l)
-  [[ $timeDiff -lt $fetchLimit ]] && exit 0 || { echo "git fetching..."; git fetch; }
+  [[ "$timeDiff" -lt "$fetchLimit" ]] && exit 0 || { echo "git fetching..."; git fetch; }
 fi
