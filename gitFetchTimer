@@ -12,7 +12,7 @@ if [ -f "$PWD"/.git/FETCH_HEAD ]; then
   timeNow=$(date +%s)
   lastFetchTime=$(stat --format=%Y "$PWD"/.git/FETCH_HEAD)
   # set integer vars
-  declare -i fetchLimit=600
+  declare -i fetchLimit=1800
   declare -i timeDiff=$(echo "$timeNow-$lastFetchTime" | bc -l)
   # check if diff is less than limit and if so exit 0, otherwise fetch
   [[ "$timeDiff" -lt "$fetchLimit" ]] && exit 0 || { echo "git fetching..."; git fetch; }
