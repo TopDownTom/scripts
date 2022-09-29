@@ -1,0 +1,15 @@
+#! /bin/bash
+# A simple script to execute complicated xrandr commands to change screen layouts
+
+layouts=(`ls $HOME/.screenlayout`)
+
+printf 'Select screen layout configuration:\n'
+select layout in ${layouts[@]} Exit;
+do
+  case $layout in
+    Exit)
+      printf '\n...Exiting...\n\n' && break ;;
+    *)
+      exec $HOME/.screenlayout/$layout && break ;;
+  esac
+done
