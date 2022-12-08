@@ -1,13 +1,19 @@
 #! /bin/bash
 
+songStatus=($(cmus-remote -Q | awk '/duration|position|status/{print $2}')) # get the duration, position, and player status
+playerStatus="${songStatus[0]}" # get player status
 
-songTime=($(cmus-remote -Q | awk '/duration|position/{print $2}'))
-secRemaining=$(echo "${songTime[0]} - ${songTime[1]}" | bc -q)
-#secRemaining=61
-convertToMinutes=$(echo "$secRemaining / 60" | bc -ql)
-[[ $convertToMinutes -lt 1 ]] && minutes='00' || minutes=${convertToMinutes%.*}
+secRemaining=$(echo "${songStatus[1]} - ${songStatus[2]}" | bc -q)
+convertToMinutes=$(echo "scale=2; $secRemaining / 60" | bc -ql)
+[[ $(echo "$convertToMinutes < 1" | bc -l) -eq "1" ]] && minutes='00' || minutes=${convertToMinutes%.*} # if lt 1 minutes remain, set minutes to 00
 decimalMinutes=${convertToMinutes#*.}
 decimalMinutesToSeconds=$(echo "0.${decimalMinutes:0:2} * 60" | bc -ql)
-echo -E "$minutes:${decimalMinutesToSeconds:0:2}"
+[[ $(echo "$decimalMinutesToSeconds < 10" | bc -l) -eq "1" ]] && decimalMinutesToSeconds="0$decimalMinutesToSeconds"
 
-echo $convertToMinutes $minutes $decimalMinutes $decimalMinutesToSeconds
+if [ $playerStatus = "playing" ] || [ $playerStatus = "paused" ]; then
+  echo -E "$minutes:${decimalMinutesToSeconds:0:2}" && echo
+	[[ $playerStatus = "playing" ]] && echo "#e69809" || echo "#b3b3b3" # if playing orange, paused grey
+  pkill -SIGRTMIN+1 i3blocks
+else
+echo ""
+fi
