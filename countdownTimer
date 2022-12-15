@@ -2,12 +2,10 @@
 
 songStatus=($(cmus-remote -Q | awk '/duration|position|status/{print $2}')) # get the duration, position, and player status
 playerStatus="${songStatus[0]}" # get player status
-
 secRemaining=$(echo "${songStatus[1]} - ${songStatus[2]}" | bc -q)
-convertToMinutes=$(echo "scale=2; $secRemaining / 60" | bc -ql)
+convertToMinutes=$(($secRemaining / 60))
 [[ $(echo "$convertToMinutes < 1" | bc -l) -eq "1" ]] && minutes='00' || minutes=${convertToMinutes%.*} # if lt 1 minutes remain, set minutes to 00
-decimalMinutes=${convertToMinutes#*.}
-decimalMinutesToSeconds=$(echo "0.${decimalMinutes:0:2} * 60" | bc -ql)
+decimalMinutesToSeconds=$(($secRemaining%60))
 [[ $(echo "$decimalMinutesToSeconds < 10" | bc -l) -eq "1" ]] && decimalMinutesToSeconds="0$decimalMinutesToSeconds"
 
 if [ $playerStatus = "playing" ] || [ $playerStatus = "paused" ]; then
