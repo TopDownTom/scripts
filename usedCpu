@@ -3,6 +3,6 @@
 # A module to calculate average cpu clock speed
 numCores=$(cat /proc/cpuinfo | awk '/siblings/{print $3}' | head -n1)
 cpuUsage=($(cat /proc/cpuinfo | awk '/cpu MHz/{print $4}'))
-IFS='+' avg=$(echo "scale=1;(${cpuUsage[*]})/${#cpuUsage[@]}"|bc)
+IFS='+' avg=$(echo "scale=0;(${cpuUsage[*]})/${#cpuUsage[@]}"|bc)
 
 echo $avg MHz
