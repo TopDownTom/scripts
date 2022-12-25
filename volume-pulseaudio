@@ -20,7 +20,7 @@ MUTED_COLOR=${MUTED_COLOR:-"#a0a0a0"}
 
 #LONG_FORMAT=${LONG_FORMAT:-'${SYMB} ${VOL}% [${INDEX}:${NAME}]'}
 LONG_FORMAT=${LONG_FORMAT:-'${VOL}% ${INDEX}:${NAME}'}
-SHORT_FORMAT=${SHORT_FORMAT:-'${SYMB} ${VOL}% [${INDEX}]'}
+SHORT_FORMAT=${SHORT_FORMAT:-'${VOL}%:${NAME}'}
 USE_ALSA_NAME=${USE_ALSA_NAME:-0}
 USE_DESCRIPTION=${USE_DESCRIPTION:-0}
 
@@ -49,7 +49,7 @@ SCONTROL=${SCONTROL:-""}
 #        s) SCONTROL="$OPTARG" ;;
 #        h) printf \
 #"Usage: volume-pulseaudio [-S] [-F format] [-f format] [-p] [-a|-d] [-H symb] [-M symb]
-#        [-L symb] [-X symb] [-T thresh] [-t thresh] [-C color] [-c color] [-i inter] 
+#        [-L symb] [-X symb] [-T thresh] [-t thresh] [-C color] [-c color] [-i inter]
 #        [-m mixer] [-s scontrol] [-h]
 #Options:
 #-F, -f\tOutput format (-F long format, -f short format) to use, with exposed variables:
@@ -162,8 +162,8 @@ sed 's/.*= "\(.*\)".*/\1/')
     if [[ $SUBSCRIBE == 1 ]] ; then
         print_format "$LONG_FORMAT"
     else
-        print_format "$LONG_FORMAT"
-#        print_format "$SHORT_FORMAT"
+#        print_format "$LONG_FORMAT"
+        print_format "$SHORT_FORMAT"
         echo "$COLOR"
     fi
 }
