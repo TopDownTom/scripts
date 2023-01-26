@@ -2,8 +2,8 @@
 
 # This script utilizes xrandr to select the desired video output configuration and switches audio output accordingly
 
-read -p "Single or Multi display? " singleOrMultiMonitor
-sleep .1
+[ -z $1 ] && read -p "Single or Multi display? " singleOrMultiMonitor || singleOrMultiMonitor=$1
+
 connectedDevices=($( xrandr --query | awk '/ connected /{print $1}' ))
 laptopScreen=$(xrandr --query | awk '/ primary /{print $1}')
 externalScreen=$(xrandr --query | grep -v " primary " | awk '/ connected /{print $1}')
@@ -22,7 +22,7 @@ then
 				echo "using $whichScreen"
 				discardedScreen=$(echo ${connectedDevices[@]/$whichScreen})
 				xrandr --output $whichScreen --auto
-				xrandr --output $discardedScreen --off
+				[ ! -z $discardedScreen ] && xrandr --output $discardedScreen --off
 				xwallpaper --stretch $HOME/.pape.png
 				if [ $whichScreen == "$laptopScreen" ]
 				then
