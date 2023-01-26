@@ -2,6 +2,9 @@
 
 cd $HOME/.config/st
 
-make
-sudo make install
-make clean
+# redirect all stdout to /dev/null, keep stderr
+{
+  make
+  sudo make install
+  make clean
+} 1>/dev/null
