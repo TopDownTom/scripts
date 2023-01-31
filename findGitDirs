@@ -1,0 +1,47 @@
+#! /bin/bash
+
+# if we're in the root or $HOME directory, bail due to size/time
+[[ $PWD == / || $PWD == $HOME ]] && exit 4
+
+# colors
+RED='\e[0;31m'
+GREEN_BOLD='\e[1;32m'
+GREEN='\e[0;32m'
+YELLOW='\e[0;33m'
+BLUE='\e[0;34m'
+PURPLE='\e[0;35m'
+NOCOL='\e[0m'
+
+function gitvars() {
+  gitInfo=($(git status -b --short))
+  porcelain=$(git status --short | awk '{print $1}' | uniq -c | tr -d '\n' | sed -r 's/[[:blank:]]+//g; s/([[:digit:]])([[:alpha:]])/\1\2 /g')
+  branch=${gitInfo[1]//...*}
+  aheadBehind=$(echo ${gitInfo[@]} | awk -F '[][]' '{print $2}')
+  if [[ -n $aheadBehind ]]; then
+    [[ $aheadBehind =~ ahead ]] && WARN_TYPE=$YELLOW || WARN_TYPE=$RED
+  else
+    aheadBehind=''
+  fi
+  tag=$(ls $a/refs/tags | tail -n1)
+  [[ -z $tag ]] && tag='' || tag="$tag-"
+  describe=$(tail -n1 $a/logs/HEAD | awk '{print $2}')
+  describeShort=${describe::7}
+  printf "${GREEN_BOLD}$branch${NOCOL} "
+  printf "${GREEN}$tag$describeShort${NOCOL} "
+  printf "${RED}$porcelain${NOCOL} "
+  printf "${WARN_TYPE}$aheadBehind${NOCOL} "
+}
+
+# find .git dirs after $HOME/, ignoring errors if none found
+gitDirs=($(find $(echo $PWD | cut -d/ -f1-4) -type d -name .git 2>/dev/null))
+
+# if gitDirs isn't empty, search
+if [ ${#gitDirs[@]} -gt 0 ]; then
+  for a in ${gitDirs[@]}; do
+  # if we're in a subdir of a git dir, exit 3
+  if [[ $PWD =~ ${a%/.git} ]]; then
+    gitvars;
+    exit 3;
+  fi
+  done
+fi
