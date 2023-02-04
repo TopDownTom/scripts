@@ -34,6 +34,21 @@ timedatectl set-ntp true
 # Partition the disks. Find device naming scheme
 fdisk -l
 
+# figure this out more fully before including
+### encryption
+#
+## prepare the disk
+## dm-crypt wipe on an empty disk or partition
+#cryptsetup open --type plain -d /dev/urandom /dev/sdx to_be_wiped
+#
+## verify to_be_wiped exists, you should see it
+#lsblk
+#
+## wipe the container
+#dd bs=1M if=/dev/zero of=/dev/mapper/to_be_wiped status=progress
+#
+## close the container after the wipe completes. it should disappear from lsblk
+cryptsetup close to_be_wiped
 
 # If you want to create any stacked block devices for LVM, system encryption or RAID, do it now.
 fdisk /dev/xX
@@ -60,7 +75,7 @@ mount /dev/xX1 /mnt
 # Update your mirrorlist and put a few United States mirrors at the top of the list.
 # Install only essential packages. Wait to install user packages once the system is functional on its own.
 vim /etc/pacman.d/mirrorlist
-pacstrap /mnt base linux linux-firmware networkmanager stow git grub xorg-server xorg-xinit sudo openssh rxvt-unicode firefox tmux rsync bash-completion
+pacstrap /mnt base linux linux-firmware networkmanager stow git grub xorg-server xorg-xinit sudo openssh rxvt-unicode firefox tmux rsync bash-completion wget vim make gcc pkg-config fakeroot
 
 
 # Generate your file system table. Afterwards check /mnt/etc/fstab for errors.
@@ -71,7 +86,7 @@ genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 
 
-# Set the time zone and sync the system to the hardware clock 
+# Set the time zone and sync the system to the hardware clock
 hwclock --systohc
 ln -sf /usr/share/zoneinfo/Region/City /etc/localtime
 
@@ -83,12 +98,11 @@ locale-gen
 
 # Create the locale.conf(5) file, and set the LANG variable accordingly:
 # Add this to the file listed below: LANG=en_US.UTF-8
-vim /etc/locale.conf
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
 
 
 # Create the hostname file /etc/hostname and add whatever hostname you want to the first line
 echo "archVMtest" > /etc/hostname
-vim /etc/hostname
 
 
 # Add matching entries to hosts(5):
@@ -115,11 +129,7 @@ grub-mkconfig -o /boot/grub/grub.cfg
 passwd
 
 
-# Install the other packages
-cat /path/to/pkglist.txt | sudo pacman -Syu --needed -
-
-
-# Exit the chroot environment 
+# Exit the chroot environment
 exit
 
 
@@ -152,6 +162,7 @@ passwd <user>
 
 
 # Add <user> to sudoers:
+ln -sf /usr/bin/vim /usr/bin/vi
 visudo
 
 
@@ -166,73 +177,62 @@ ln -sf /usr/share/zoneinfo/Region/City /etc/localtime
 # If migrating from an old setup copy the pacman cache to this new machine.
 rsync -av /path/to/old /var/cache/pacman/pkg
 
-
 # Set up ssh keys
 ssh-keygen
 
 
 # Add your key to github
 
+# make some directories
+mkdir -p $HOME/{dls/builds,.files,docs/scripts}
 
-# Get the config files for your system. If your new machine is closer in setup to the thinkpad or desktop choose the
-# correct branch.
+# Install the other packages
+wget https://raw.githubusercontent.com/TopDownTom/dotfiles/master/pkglist-t470.txt
+git clone https://aur.archlinux.org/yay.git $HOME/dls/builds/yay
+cd $HOME/dls/builds/yay
+makepkg -si
+
+# set ParallelDownloads in pacman.conf
+
+cat $HOME/pkglist-t470.txt | yay -Syu --needed -
+
+# get scripts needed for dotfiles
+git clone git@github.com:TopDownTom/scripts.git $HOME/docs/scripts
+cd $HOME/docs/scripts
+
+# Get the config files for your system
 git clone git@github.com:TopDownTom/dotfiles.git $HOME/.files
 cd $HOME/.files
-git checkout <desired branch>
-rm $HOME/.bashrc
-stow -vt ~ *
+rm $HOME/{.bashrc,.bash_profile}
+
+# stow the user files
+stow -vt ~ {cmus,dmenu,dunst,homeDirFiles,i3,newsboat,nvim,picom,ranger,redshift,ssh,st,texmf,user-dirs,userSystemD,vim}
+
+# remove conflict files
+sudo rm /etc/pulse/{default.pa,system.pa}
+sudo rm /etc/tlp.conf
+
+# stow the root files
+sudo stow -vt / rootItems
+sudo chown -R root:root $HOME/.files/rootItems/
 
 # Point vim to use my config
 sudo rm /usr/bin/vi
 sudo ln -s /usr/bin/nvim /usr/bin/vi
 sudo -i
-sudo echo "source /home/tom/.files/vim/.config/vim/vimrc" >> /etc/vimrc
+sudo echo "source /home/test/.files/vim/.config/vim/vimrc" >> /etc/vimrc
 exit
 
-git clone git@github.com:TopDownTom/scripts.git $HOME/docs/scripts
-cd $HOME/docs/scripts
-git checkout <desired branch> 
+# make st terminal
+stMake
 
-
-# Install fonts
-mkdir -p $HOME/dl/builds
-cd $HOME/dl/builds
-cp $HOME/.files/packagedGoods/DaddyTimeMono.zip $HOME/dl/builds
-sudo mkdir /usr/share/fonts/DaddyTimeMono
-sudo unzip -o DaddyTimeMono.zip -d /usr/share/fonts/DaddyTimeMono
-
-
-# Deploy the config files. Run first with -n flag to ensure everything looks right. Then run it again without -n if it does.
-# Stow can be a bit tricky, you may need to do this one at a time. Also, Firefox will not work for userChrome because the
-# profile directory is a randomString.default-release so this will need to be updated to the new directory once Firefox
-# is installed.
-stow -nvt ~ *
-
-
-# Install yay
-mkdir $HOME/dl/builds/yay
-git clone https://aur.archlinux.org/yay.git $HOME/dl/builds/yay
-cd $HOME/dl/builds/yay
-makepkg -si
-
-
-# Install polybar
-yay -Syu polybar
-# Run polybar
-polyReload
-
-
-# Install pydflatex
-yay -Syu pydflatex
-
+# make dmenu
+dmenuMake
 
 # Exit then re-login with user and things should work
 
-
 # If things don't work from here, investigate. This could be for a variety of reasons. Likely, if you've made it this far
 # though the installation went okay and its a matter of tweaking configs or whatever.
-
-
 
 # Configuring Firefox
 move $HOME/.files/homeDirFiles/.mozilla/firefox/*.default-release/chrome to whatever ~/.mozilla/firefox/*.default-release you have for your current install
@@ -240,11 +240,8 @@ in about:config - change toolkit.legacyUserProfileCustomizations.stylesheeets to
 make changes to View > Toolbars > Customize...
 about:config - media.peerconnection.enabled -> false
 
-
-# Install protonvpn then configure it
-sudo pip3 install protonvpn-cli 
-
 #########
 # TO DO #
 #########
-- Do some more run-throughs with the frequently updated package list 
+- encryption
+- lvm
