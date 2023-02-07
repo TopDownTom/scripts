@@ -59,7 +59,7 @@ sed -i 's/^/"/' "$NEW_NAMES"
 sed -i 's/$/"/' "$NEW_NAMES"
 
 # Create the commands to rename or delete files
-paste -d' ' "$ORIG_NAMES" "$NEW_NAMES" | sed 's/^/mv /' | egrep -v 'mv (".*") \1' | sed 's/mv \("[^"]*"\) "\s*"*$/rm -rf \1/' > "$COMMANDS"
+paste -d' ' "$ORIG_NAMES" "$NEW_NAMES" | sed 's/^/mv /' | grep -Ev 'mv (".*") \1' | sed 's/mv \("[^"]*"\) "\s*"*$/rm -rf \1/' > "$COMMANDS"
 
 # Exectute the commands
 bash -x "$COMMANDS"
