@@ -1,6 +1,6 @@
-########################################
-######     Begin-installation     ######
-########################################
+##########################
+### begin installation ###
+##########################
 
 # Verify image signature
 gpg --keyserver-options auto-key-retrieve --verify archlinux-version-x86_64.iso.sig
@@ -11,6 +11,9 @@ pacman-key -v archlinux-version-x86_64.iso.sig
 
 
 # boot the iso
+
+# change the root password so we can SSH into it
+passwd
 
 
 # Verify the boot mode
@@ -34,8 +37,11 @@ ping archlinux.org
 timedatectl set-ntp true
 
 
-#### TEST ####
-### encryption
+##################
+### encryption ###
+##################
+
+
 # partition what will become the encrypted container
 # create a 1G boot partition and the rest will be the encrypted lvm partition
 fdisk /dev/nvme0n1
@@ -78,17 +84,24 @@ mount --mkdir /dev/volGroup/home /mnt/home
 swapon /dev/volGroup/swap
 
 
-# Installation
+# verify the mountpoints look good
+lsblk
+
+
+####################
+### installation ###
+####################
 
 
 # Update your mirrorlist and put a few United States mirrors at the top of the list.
 # Install only essential packages. Wait to install user packages once the system is functional on its own.
 vim /etc/pacman.d/mirrorlist
-pacstrap /mnt base linux linux-firmware networkmanager stow git grub xorg-server xorg-xinit sudo openssh rxvt-unicode firefox tmux rsync bash-completion wget vim make gcc pkg-config fakeroot lvm2
+pacstrap /mnt base linux linux-firmware networkmanager stow git grub xorg-server xorg-xinit sudo openssh rsync wget vim make gcc pkg-config fakeroot lvm2
 
 
 # Generate your file system table. Afterwards check /mnt/etc/fstab for errors.
 genfstab -U /mnt >> /mnt/etc/fstab
+cat /mnt/etc/fstab
 
 
 # Chroot into the new environment
@@ -97,7 +110,7 @@ arch-chroot /mnt
 
 # Set the time zone and sync the system to the hardware clock
 hwclock --systohc
-ln -sf /usr/share/zoneinfo/Region/City /etc/localtime
+ln -sf /usr/share/zoneinfo/America/New_York /etc/localtime
 
 
 # Localization. Uncomment en_US.UTF-8 UTF-8 and other needed locales in /etc/locale.gen, and generate them.
@@ -123,7 +136,7 @@ echo "127.0.0.1 localhost" > /etc/hosts
 echo "::1 localhost" >> /etc/hosts
 
 
-# add the following hooks to /etc/mkinitcpio.conf if not present: keyboard, keymap, encrypt, lvm2
+# add the following hooks to /etc/mkinitcpio.conf if not present: keyboard keymap encrypt lvm2
 # example:
 HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block encrypt lvm2 filesystems fsck)
 
@@ -133,12 +146,12 @@ HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block encryp
 mkinitcpio -P
 
 
-# get the device UUID LUKS superblock
+# get the device UUID of the LUKS superblock (i.e. where the crypt volume was set up)
 blkid /dev/nvme0n1p2
 
 
 # add the following cryptdevice parameter to GRUB_CMDLINE_LINUX in /etc/default/grub
-cryptdevice=UUID=device-UUID:cryptlvm root=/dev/volGroup/root
+cryptdevice=UUID=9111593d-4115-4786-95d9-38055bc52759:cryptlvm root=/dev/volGroup/root
 
 
 # Boot loader (i use grub for this in MBR format. Install to the disk, NOT a partition)
@@ -153,6 +166,17 @@ grub-mkconfig -o /boot/grub/grub.cfg
 passwd
 
 
+# enable networkmanager. warnings about systemd are okay, we just want to ensure the symlinks exist
+systemctl enable --now NetworkManager
+
+
+# set PermitRootLogin yes for sshd
+
+
+# enable sshd. warnings about systemd are okay, we just want to ensure the symlinks exist
+systemctl enable --now sshd
+
+
 # Exit the chroot environment
 exit
 
@@ -164,18 +188,9 @@ umount -R /mnt
 # Poweroff. Remove the installtion media then power on. Your system should boot to grub. Congrats!
 
 
-########################################
-######      Post-installation     ######
-########################################
-
-# Log in with root
-# Enable networking
-systemctl enable --now NetworkManager
-
-
-# enable sshd
-# NOTE: you may need to PermitRootLogin yes in sshd_config
-systemctl enable --now sshd
+#########################
+### post installation ###
+#########################
 
 
 # Get your system up to date and investigate any errors
@@ -200,7 +215,7 @@ visudo
 
 
 # Ensure the timezone is set correctly
-ln -sf /usr/share/zoneinfo/Region/City /etc/localtime
+ln -sf /usr/share/zoneinfo/America/New_York /etc/localtime
 
 
 # If migrating from an old setup copy the pacman cache to this new machine.
@@ -215,35 +230,39 @@ ssh-keygen
 
 
 # make some directories
-mkdir -p $HOME/{dls/builds,.files,docs/scripts}
+sudo mkdir -m775 -p /usr/local/etc/{builds,user_configs,scripts}
+sudo chown root:users /usr/local/etc/{builds,user_configs,scripts}
 
 
 # Install the other packages
+cd ~
 wget https://raw.githubusercontent.com/TopDownTom/dotfiles/master/pkglist-t470.txt
-git clone https://aur.archlinux.org/yay.git $HOME/dls/builds/yay
-cd $HOME/dls/builds/yay
+git clone https://aur.archlinux.org/yay.git /usr/local/etc/builds/yay/
+cd /usr/local/etc/builds/yay
 makepkg -si
 
 
 # set ParallelDownloads in pacman.conf
 
 
-# get rest of the packages
+# get rest of the packages. this will take several minutes
 cat $HOME/pkglist-t470.txt | yay -Syu --needed -
 
 
 # get scripts needed for dotfiles
-git clone git@github.com:TopDownTom/scripts.git $HOME/docs/scripts
-cd $HOME/docs/scripts
+git clone https://github.com/TopDownTom/scripts.git /usr/local/etc/scripts
+git config --global --add safe.directory /usr/local/etc/scripts
+sudo ln -sf /usr/local/etc/scripts/* /usr/sbin/
 
 
-# get the config files for your system
-git clone git@github.com:TopDownTom/dotfiles.git $HOME/.files
-cd $HOME/.files
-rm $HOME/{.bashrc,.bash_profile}
+# get dotfiles
+git clone https://github.com/TopDownTom/dotfiles.git /usr/local/etc/user_configs/
+git config --global --add safe.directory /usr/local/etc/user_configs
+cd /usr/local/etc/user_configs/
 
 
 # stow the user files
+rm $HOME/{.bashrc,.bash_profile}
 stow -vt ~ {cmus,dmenu,dunst,homeDirFiles,i3,newsboat,nvim,picom,ranger,redshift,ssh,st,texmf,user-dirs,userSystemD,vim}
 
 
@@ -253,28 +272,60 @@ sudo rm /etc/tlp.conf
 
 
 # stow the root files
+cd /usr/local/etc/user_configs/
 sudo stow -vt / rootItems
-sudo chown -R root:root $HOME/.files/rootItems/
+sudo chown -R root:root /usr/local/etc/user_configs/rootItems/
 
 
 # Point vim to use my config
 sudo rm /usr/bin/vi
 sudo ln -s /usr/bin/nvim /usr/bin/vi
 sudo -i
-echo "source /home/test/.files/vim/.config/vim/vimrc" >> /etc/vimrc
+echo "source /usr/local/etc/user_configs/vim/.config/vim/vimrc" >> /etc/vimrc
 exit
 
 
-# make st terminal
-. $HOME/docs/scripts/stMake
-
-
-# make dmenu
-. $HOME/docs/scripts/dmenuMake
+# make suckless binaries
+. /usr/sbin/stMake
+. /usr/sbin/dmenuMake
 
 
 # Exit then re-login with user and things should work
 
+
+############################
+### creating other users ###
+############################
+
+# Add users
+# NOTE: if they are not super users, dont include '-G wheel' here
+useradd -m -g users -G wheel <user>
+
+
+# Set the user's password
+passwd <user>
+
+
+# Add <user> to sudoers:
+# NOTE: don't do this if they aren't super users
+visudo
+
+
+# Set up ssh keys, if you want
+ssh-keygen
+
+# exit then log in as the new user
+
+# stow the user files
+cd /usr/local/etc/user_configs/
+rm $HOME/{.bashrc,.bash_profile}
+stow -vt ~ {cmus,dmenu,dunst,homeDirFiles,i3,newsboat,nvim,picom,ranger,redshift,ssh,st,texmf,user-dirs,userSystemD,vim}
+
+# repeat the above section for each user you wish to add
+
+################
+### congrats ###
+################
 
 # If things don't work from here, investigate. This could be for a variety of reasons. Likely, if you've made it this far
 # though the installation went okay and its a matter of tweaking configs or whatever.
@@ -289,3 +340,4 @@ about:config - media.peerconnection.enabled -> false
 # TO DO #
 #########
 - script this / ansible
+- make this user-agnostic as much as possible to remain portable
