@@ -1,0 +1,142 @@
+#! /bin/bash
+
+# any lines in a group can be run together
+# isolated lines usually require some kind of intervention or interactive step
+
+# check if we can get out to the network
+ping -c1 8.8.8.8 1>/dev/null && [[ $? -gt 0 ]] && echo "network not connected. please fix" && exit 2
+
+# set the time to use ntp
+timedatectl set-ntp true
+
+# change the root password so we can SSH into it
+passwd
+
+# confirm if we're booted into efi or not (probably not)
+ls /sys/firmware/efi/efivars
+
+# install vars
+export DEVICE=sda # i.e. sda, nvme0n1
+export DEVICE_PART_1=${DEVICE}1 # i.e. sda1, nvme0n1p1
+export DEVICE_PART_2=${DEVICE}2 # i.e. sda2, nvme0n1p2
+export SWAP_SIZE=1 # in GB
+export ROOT_SIZE=20 # in GB
+export BOOT_SECTOR_END= # in MB (2048+N) # DEFAULTS to 3024
+export CRYPT_MOUNT_NAME= # DEFAULTS to cryptlvm
+export VOL_NAME= # DEFAULTS to volgroup
+export TZ=America/New_York
+export HOST_NAME=gen
+export USER_NAME=main
+
+parted -a optimal /dev/$DEVICE mklabel msdos
+parted -a optimal /dev/$DEVICE --script mkpart primary ext4 2048 ${BOOT_SECTOR_END:=3024}
+parted -a optimal /dev/$DEVICE --script mkpart primary ext4 ${BOOT_SECTOR_END:=3024} 100%
+
+cryptsetup luksFormat /dev/$DEVICE_PART_2
+
+cryptsetup open /dev/$DEVICE_PART_2 ${CRYPT_MOUNT_NAME:=cryptlvm}
+
+pvcreate /dev/mapper/${CRYPT_MOUNT_NAME:=cryptlvm}
+vgcreate ${VOL_NAME:=volgroup} /dev/mapper/${CRYPT_MOUNT_NAME:=cryptlvm}
+lvcreate -L ${SWAP_SIZE}G ${VOL_NAME:=volgroup} -n swap
+lvcreate -L ${ROOT_SIZE}G ${VOL_NAME:=volgroup} -n root
+lvcreate -l 100%FREE ${VOL_NAME:=volgroup} -n home
+lvreduce -L -256M ${VOL_NAME:=volgroup}/home
+
+mkfs.ext4 /dev/$DEVICE_PART_1
+mkfs.ext4 /dev/${VOL_NAME:=volgroup}/root
+mkfs.ext4 /dev/${VOL_NAME:=volgroup}/home
+mkswap /dev/${VOL_NAME:=volgroup}/swap
+mount /dev/${VOL_NAME:=volgroup}/root /mnt
+mount --mkdir /dev/$DEVICE_PART_1 /mnt/boot
+mount --mkdir /dev/${VOL_NAME:=volgroup}/home /mnt/home
+swapon /dev/${VOL_NAME:=volgroup}/swap
+lsblk
+
+pacstrap /mnt base linux linux-firmware networkmanager stow git grub xorg-server xorg-xinit sudo openssh rsync wget vim make gcc pkg-config fakeroot lvm2
+
+genfstab -U /mnt >> /mnt/etc/fstab
+arch-chroot /mnt
+
+hwclock --systohc
+ln -s /usr/share/zoneinfo/$TZ /etc/localtime
+echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
+locale-gen
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
+echo "$HOST_NAME" > /etc/hostname
+echo "127.0.0.1 localhost" > /etc/hosts
+echo "::1 localhost" >> /etc/hosts
+
+# add the following to /etc/mkinitcpio.conf
+sed -i '/^HOOKS=(/c HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block encrypt lvm2 filesystems fsck)' /etc/mkinitcpio.conf
+
+mkinitcpio -P
+
+CRYPTLVM_UUID=$(blkid /dev/$DEVICE_PART_2 | awk '{print $2}' | cut -d'"' -f2 -)
+
+# add the boot config options to grub config
+sed -i "s/GRUB_CMDLINE_LINUX=\".*/GRUB_CMDLINE_LINUX=\"loglevel=3 cryptdevice=UUID=$CRYPTLVM_UUID:${CRYPT_MOUNT_NAME:=cryptlvm} root=\/dev\/${VOL_NAME:=volgroup}\/root\/\"/" /etc/default/grub
+
+grub-install --target=i386-pc /dev/$DEVICE
+grub-mkconfig -o /boot/grub/grub.cfg
+
+passwd
+
+systemctl enable NetworkManager
+systemctl enable sshd
+useradd -m -g users -G wheel $USER_NAME
+passwd $USER_NAME
+
+visudo
+
+cd
+su $USER_NAME
+ssh-keygen
+
+sudo ls
+
+# post install
+sudo mkdir -m750 -p /usr/local/etc/{builds,user_configs,scripts}
+sudo chown $USER_NAME:users /usr/local/etc/{builds,user_configs,scripts}
+
+cd ~
+wget https://raw.githubusercontent.com/TopDownTom/dotfiles/master/pkglist-t470.txt
+git clone https://aur.archlinux.org/yay-bin.git /usr/local/etc/builds/yay/
+cd /usr/local/etc/builds/yay
+makepkg -si
+
+sudo sed -i '/#ParallelDownloads/c ParallelDownloads = 5' /etc/pacman.conf
+cat $HOME/pkglist-t470.txt | yay -Syu --sudoloop --combinedupgrade --answerclean ALL --answerdiff NONE --answeredit NONE --answerupgrade NONE --removemake --needed -
+
+sudo ls
+
+git clone https://github.com/TopDownTom/scripts.git /usr/local/etc/scripts
+sudo ln -s /usr/local/etc/scripts/* /usr/local/sbin/
+
+git clone https://github.com/TopDownTom/dotfiles.git /usr/local/etc/user_configs/
+cd /usr/local/etc/user_configs/
+rm $HOME/{.bashrc,.bash_profile}
+clear
+
+stow -vt ~ {cmus,dmenu,dunst,homeDirFiles,i3,newsboat,nvim,picom,ranger,redshift,ssh,st,texmf,user-dirs,userSystemD,vim}
+
+sudo rm /etc/pulse/{default.pa,system.pa}
+sudo rm /etc/tlp.conf
+cd /usr/local/etc/user_configs/
+
+clear
+sudo stow -vt / rootItems
+sudo chown -R root:root /usr/local/etc/user_configs/rootItems/
+
+sudo ln -sf /usr/bin/nvim /usr/bin/vi
+sudo -i
+echo "source /usr/local/etc/user_configs/vim/.config/vim/vimrc" >> /etc/vimrc
+exit
+
+. /usr/local/sbin/stMake
+. /usr/local/sbin/dmenuMake
+
+exit
+swapoff /dev/mapper/volgroup-swap
+
+poweroff
