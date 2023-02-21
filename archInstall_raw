@@ -28,14 +28,18 @@ export TZ=America/New_York
 export HOST_NAME=gen
 export USER_NAME=main
 
+# make two partitions, a boot partition and a root partition we'll encrypt
 parted -a optimal /dev/$DEVICE mklabel msdos
 parted -a optimal /dev/$DEVICE --script mkpart primary ext4 2048 ${BOOT_SECTOR_END:=3024}
 parted -a optimal /dev/$DEVICE --script mkpart primary ext4 ${BOOT_SECTOR_END:=3024} 100%
 
+# format and set the password
 cryptsetup luksFormat /dev/$DEVICE_PART_2
 
+# open it for editing
 cryptsetup open /dev/$DEVICE_PART_2 ${CRYPT_MOUNT_NAME:=cryptlvm}
 
+# create swap, root, home logical volumes
 pvcreate /dev/mapper/${CRYPT_MOUNT_NAME:=cryptlvm}
 vgcreate ${VOL_NAME:=volgroup} /dev/mapper/${CRYPT_MOUNT_NAME:=cryptlvm}
 lvcreate -L ${SWAP_SIZE}G ${VOL_NAME:=volgroup} -n swap
@@ -43,6 +47,7 @@ lvcreate -L ${ROOT_SIZE}G ${VOL_NAME:=volgroup} -n root
 lvcreate -l 100%FREE ${VOL_NAME:=volgroup} -n home
 lvreduce -L -256M ${VOL_NAME:=volgroup}/home
 
+# make ext4 filesystems, mount them
 mkfs.ext4 /dev/$DEVICE_PART_1
 mkfs.ext4 /dev/${VOL_NAME:=volgroup}/root
 mkfs.ext4 /dev/${VOL_NAME:=volgroup}/home
@@ -53,12 +58,15 @@ mount --mkdir /dev/${VOL_NAME:=volgroup}/home /mnt/home
 swapon /dev/${VOL_NAME:=volgroup}/swap
 lsblk
 
+# pacstrap
 sed -i '/#ParallelDownloads/c ParallelDownloads = 5' /etc/pacman.conf
 pacstrap /mnt base linux linux-firmware networkmanager stow git grub xorg-server xorg-xinit sudo openssh rsync wget vim make gcc pkg-config fakeroot lvm2
 
+# generate the fstab, enter the system
 genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 
+# set lang, hosts, hostname
 hwclock --systohc
 ln -s /usr/share/zoneinfo/$TZ /etc/localtime
 echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
@@ -71,73 +79,89 @@ echo "::1 localhost" >> /etc/hosts
 # add the following to /etc/mkinitcpio.conf
 sed -i '/^HOOKS=(/c HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block encrypt lvm2 filesystems fsck)' /etc/mkinitcpio.conf
 
+# make the initcpio
 mkinitcpio -P
 
-CRYPTLVM_UUID=$(blkid /dev/$DEVICE_PART_2 | awk '{print $2}' | cut -d'"' -f2 -)
-
 # add the boot config options to grub config
+CRYPTLVM_UUID=$(blkid /dev/$DEVICE_PART_2 | awk '{print $2}' | cut -d'"' -f2 -)
 sed -i "s/GRUB_CMDLINE_LINUX=\".*/GRUB_CMDLINE_LINUX=\"loglevel=3 cryptdevice=UUID=$CRYPTLVM_UUID:${CRYPT_MOUNT_NAME:=cryptlvm} root=\/dev\/mapper\/${VOL_NAME:=volgroup}-root\"/" /etc/default/grub
 
+# set up GRUB
 grub-install --target=i386-pc /dev/$DEVICE
 grub-mkconfig -o /boot/grub/grub.cfg
 
+# set the root user's password
 passwd
 
+# enable network manager and ssh
+# set the password for the new user
 systemctl enable NetworkManager
 systemctl enable sshd
 useradd -m -g users -G wheel $USER_NAME
 passwd $USER_NAME
 
+# add the new user sudoers
 visudo
 
+# generate an ssh key to create the .ssh dir
 cd
 su $USER_NAME
 ssh-keygen
 
+# sudo up
 sudo ls
 
 # post install
+# create user config dirs
 sudo mkdir -m750 -p /usr/local/etc/{builds,user_configs,scripts}
 sudo chown $USER_NAME:users /usr/local/etc/{builds,user_configs,scripts}
 
-cd ~
-wget https://raw.githubusercontent.com/TopDownTom/dotfiles/master/pkglist-t470.txt
+# get the package list and install yay-bin
 git clone https://aur.archlinux.org/yay-bin.git /usr/local/etc/builds/yay/
 cd /usr/local/etc/builds/yay
 makepkg -si
 
+# install the rest of the packages
+cd ~
+wget https://raw.githubusercontent.com/TopDownTom/dotfiles/master/pkglist-t470.txt
 sudo sed -i '/#ParallelDownloads/c ParallelDownloads = 5' /etc/pacman.conf
 cat $HOME/pkglist-t470.txt | yay -Syu --sudoloop --combinedupgrade --answerclean ALL --answerdiff NONE --answeredit NONE --answerupgrade NONE --removemake --needed -
 
+# sudo up
 sudo ls
 
+# get config scripts
 git clone https://github.com/TopDownTom/scripts.git /usr/local/etc/scripts
 sudo ln -s /usr/local/etc/scripts/* /usr/local/sbin/
-
+# get dotfiles
 git clone https://github.com/TopDownTom/dotfiles.git /usr/local/etc/user_configs/
 cd /usr/local/etc/user_configs/
 rm $HOME/{.bashrc,.bash_profile}
-clear
 
+# stow user config files
 stow -vt ~ {cmus,dmenu,dunst,homeDirFiles,i3,newsboat,nvim,picom,ranger,redshift,ssh,st,texmf,user-dirs,userSystemD,vim}
 
+# stow root files and change their perms
 sudo rm /etc/pulse/{default.pa,system.pa}
 sudo rm /etc/tlp.conf
 cd /usr/local/etc/user_configs/
-
-clear
 sudo stow -vt / rootItems
 sudo chown -R root:root /usr/local/etc/user_configs/rootItems/
 
+# set vi
 sudo ln -sf /usr/bin/nvim /usr/bin/vi
+
+# sudo up
 sudo -i
 
 echo "source /usr/local/etc/user_configs/vim/.config/vim/vimrc" >> /etc/vimrc
 exit
 
+# make suckless stuff
 . /usr/local/sbin/stMake
 . /usr/local/sbin/dmenuMake
 
+# bail out, we're done
 exit
 exit
 swapoff /dev/mapper/${VOL_NAME:=volgroup}-swap
