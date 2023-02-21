@@ -53,6 +53,7 @@ mount --mkdir /dev/${VOL_NAME:=volgroup}/home /mnt/home
 swapon /dev/${VOL_NAME:=volgroup}/swap
 lsblk
 
+sed -i '/#ParallelDownloads/c ParallelDownloads = 5' /etc/pacman.conf
 pacstrap /mnt base linux linux-firmware networkmanager stow git grub xorg-server xorg-xinit sudo openssh rsync wget vim make gcc pkg-config fakeroot lvm2
 
 genfstab -U /mnt >> /mnt/etc/fstab
@@ -75,7 +76,7 @@ mkinitcpio -P
 CRYPTLVM_UUID=$(blkid /dev/$DEVICE_PART_2 | awk '{print $2}' | cut -d'"' -f2 -)
 
 # add the boot config options to grub config
-sed -i "s/GRUB_CMDLINE_LINUX=\".*/GRUB_CMDLINE_LINUX=\"loglevel=3 cryptdevice=UUID=$CRYPTLVM_UUID:${CRYPT_MOUNT_NAME:=cryptlvm} root=\/dev\/${VOL_NAME:=volgroup}\/root\/\"/" /etc/default/grub
+sed -i "s/GRUB_CMDLINE_LINUX=\".*/GRUB_CMDLINE_LINUX=\"loglevel=3 cryptdevice=UUID=$CRYPTLVM_UUID:${CRYPT_MOUNT_NAME:=cryptlvm} root=\/dev\/mapper\/${VOL_NAME:=volgroup}-root\"/" /etc/default/grub
 
 grub-install --target=i386-pc /dev/$DEVICE
 grub-mkconfig -o /boot/grub/grub.cfg
@@ -130,6 +131,7 @@ sudo chown -R root:root /usr/local/etc/user_configs/rootItems/
 
 sudo ln -sf /usr/bin/nvim /usr/bin/vi
 sudo -i
+
 echo "source /usr/local/etc/user_configs/vim/.config/vim/vimrc" >> /etc/vimrc
 exit
 
@@ -137,6 +139,8 @@ exit
 . /usr/local/sbin/dmenuMake
 
 exit
-swapoff /dev/mapper/volgroup-swap
+exit
+swapoff /dev/mapper/${VOL_NAME:=volgroup}-swap
+umount -R /mnt
 
 poweroff
