@@ -1,19 +1,21 @@
 #! /bin/bash
-# This auto generates a bash script and makes it executable.
+# This auto generates a bash script, makes it executable, and symlinks it to the PATH
 
 function userHelp {
   echo -e "\nuse: scriptGen <filename>"
 }
 
 [[ -z $1 ]] && echo "You must provide a filename" && userHelp && exit 1
-[[ "$1" == "-h" ]] && userHelp && exit 0
+[[ "$1" == "-h" || "$1" == "--help" ]] && userHelp && exit 0
 
 script_file="$SCRIPT_DIR/$1"
 
 if [[ -f $script_file ]]; then
-	echo "File Already Exists" # Check if a file with that name exists in $HOME/Tools
+  echo "File Already Exists" # Check if a file with that name exists
 else
-	echo '#! /bin/bash' > $script_file # Add the she-bang to the first line of the script
-	chmod 750 $script_file # make it executable
-	vi $script_file # open it
+  echo '#! /bin/bash' > $script_file # Add the she-bang to the first line of the script
+  chmod 750 $script_file # make it executable
+  vi $script_file # open it
+  sudo -nv
+  sudo ln -s $script_file /usr/local/sbin
 fi
