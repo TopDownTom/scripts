@@ -1,0 +1,21 @@
+#! /bin/bash
+# This removes a script from the repo and unlinks it from PATH
+
+function userHelp {
+  echo -e "\nuse: scriptRm <filename>"
+}
+
+[[ -z $1 ]] && echo "You must provide a filename" && userHelp && exit 1
+[[ "$1" == "-h" || "$1" == "--help" ]] && userHelp && exit 0
+
+script_file="$SCRIPT_DIR/$1"
+
+if [[ -f $script_file ]]; then
+  sudo -nv
+  echo "Unlinking $1 from PATH..."
+  sudo unlink /usr/local/sbin/"$1"
+  echo "Removing from scripts dir"
+  rm "/usr/local/etc/scripts/$1"
+else
+  echo "File doesnt exist, doing nothing."
+fi
