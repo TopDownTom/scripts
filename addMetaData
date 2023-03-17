@@ -1,0 +1,51 @@
+#! /bin/bash
+
+# adds metadata to mp3 files
+# run this script from a 'root' directory like $HOME/music
+# this script assumes there are directories in your root directory corresponding to Artists
+# and within these dirs are Album dirs
+# this script assumes there aren't subdirs in album dirs
+
+baseDir=$PWD
+date=$(date +%Y)
+comment='metadata added with addMetaData. see github.com/topdowntom/scripts'
+
+for a in "$PWD"/*;
+do
+  dirName="$a"
+  cd "$dirName"
+  artist="${dirName#*$baseDir/}"
+  subdirCheck=$(ls -d */ 2>/dev/null)
+  rc=$(echo $?)
+  if [[ $rc -eq 0 ]]; then
+    for b in "$PWD"/*;
+    do
+      [[ -d $b ]] && cd "$b" || b=$PWD
+      echo "artist: $artist | album: ${b##*/}"
+      for c in *.mp3;
+      do
+        echo working on: "$c"
+        ffmpeg -hide_banner -nostats -loglevel warning -y -i "$c" -c copy\
+         -metadata artist="$artist"\
+         -metadata album_artist="$artist"\
+         -metadata album="${b##*/}"\
+         -metadata title="$c"\
+         "meta.$c"
+        mv "meta.$c" "$c"
+      done
+    done
+  else
+    for d in *.mp3;
+    do
+      echo "artist: $artist | album: ${dirName##*/}"
+      echo working on: "$d"
+      ffmpeg -hide_banner -nostats -loglevel warning -y -i "$d" -c copy\
+      -metadata artist="$artist"\
+      -metadata album_artist="$artist"\
+      -metadata album="${dirName##*/}"\
+      -metadata title="$d"\
+      "meta.$d"
+      mv "meta.$d" "$d"
+    done
+  fi
+done
