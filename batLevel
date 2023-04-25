@@ -13,7 +13,7 @@ if [ -d "/sys/class/power_supply/BAT0" ]; then
   dischargeState=$(echo $?)
 	[[ $dischargeState -lt 1 ]] && echo "#000000" || echo "#33cc33"
 	# Alert if the total of all battery capacities is less than the set lower limit
-	[[ $dischargeState -lt 1 ]] && [[ $(echo "$combinedLevels < 10" | bc) -eq 1 ]] && notify-send -u critical "Batteries below 10%!"
+	[[ $dischargeState -lt 1 ]] && [[ $(echo "$combinedLevels < 10" | bc) -eq 1 ]] && notify-send -u critical "Batteries below 10%! At $combinedLevels!"
 else
 	echo
 fi
