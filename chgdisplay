@@ -28,7 +28,7 @@ then
 				then
 					pacmd set-card-profile 0 output:analog-stereo
 				else
-					pacmd set-card-profile 0 output:hdmi-stereo-extra1
+					pacmd set-card-profile 0 output:hdmi-stereo+input:analog-stereo
 				fi
 				notify-send -u normal -t 2000 "Moving display to $whichScreen"
 				break
