@@ -5,3 +5,4 @@ warnings=$(grep warning: /var/log/pacman.log | grep `date +%F`)
 
 # if warnings is populated, show them
 [[ ! -z $warnings ]] && echo -e "\nBelow are warnings from pacman:\n\n$warnings\n\n"
+exit 0
