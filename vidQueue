@@ -1,0 +1,26 @@
+#! /bin/bash
+
+# This script downloads yt videos to a dir and notifies the user on start and completion
+videoDir=$HOME/videos/yt
+failedURLs=/tmp/failed_video_urls
+opts=''
+link=$1
+
+download () {
+  cd $videoDir
+  filename=$(/usr/bin/yt-dlp "$link" --print filename --skip-download 2>/dev/null)
+  notify-send "Downloading: $filename"
+  /usr/bin/yt-dlp $opts "$link" --check-formats
+  rc=$?
+  [[ $rc == 0 ]] && status=0 || status=1
+}
+
+if [[ "$1" =~ "odysee.com" ]]; then
+  download
+elif [[ "$1" =~ "youtube" ]]; then
+  opts='-f 22'
+  download
+fi
+
+[[ "$status" == 0 ]] && notify-send "Completed DL: $filename"
+[[ "$status" == 1 ]] && notify-send --urgency=critical "failed: $filename" && echo "$filename -> $link" >> $failedURLs && sort -uo $failedURLs $failedURLs
