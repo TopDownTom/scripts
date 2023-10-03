@@ -11,8 +11,8 @@ song="${file##*/}" # remove everything up through the last /
 song="${song%.*}" # remove the filetype .filetype
 playing="$artist - $song" # append Artist - Song
 playerStatus="$(cmus-remote -Q | awk '/status/{print $2}')" # get player status
-# if artist and track length greater than 30, truncate it
-[[ ${#playing} -gt 30 ]] && playing="${playing:0:30}..."
+# if artist and track length greater than 60, truncate it
+[[ ${#playing} -gt 60 ]] && playing="${playing:0:60}..."
 
 if [ $playerStatus = "playing" ] || [ $playerStatus = "paused" ]; then
 	echo $playing && echo # define script output && set blank first echo statement for i3blocks
