@@ -7,5 +7,9 @@ curl -s ifconfig.me | grep -i Error: && echo "ifconfig.me error" || \
 
 testOnline
 if [ $? -eq 0 ]; then
-	[[ "$(nmcli c s | grep tun)" ]] && echo "T:`protonvpn-cli status | awk '/Server:/ || /IP:/ {print " "$2}' | tr -d '\n'`" || echo `curl ifconfig.me`
+	if [ "$(nmcli c s | grep tun)" ]; then
+   echo "T:`protonvpn-cli status | awk '/Server:/ || /IP:/ {print " "$2}' | tr -d '\n'`" && echo && echo \#3cb371
+  else
+   echo `curl ifconfig.me` && echo && echo \#b22222
+  fi
 fi
