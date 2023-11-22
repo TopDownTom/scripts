@@ -131,7 +131,7 @@ function print_block {
     NAME=$(echo "$NAME" | sed \
 's/.*<.*\.\(.*\)>.*/\1/; t;'\
 's/.*<\(.*\)>.*/\1/; t;'\
-'s/.*/no audio sources/')
+'s/.*/no audio/')
 
     if [[ $USE_ALSA_NAME == 1 ]] ; then
         ALSA_NAME=$(pacmd list-sinks |\
