@@ -1,0 +1,66 @@
+#! /bin/bash
+
+# Scripts are globally stored in /usr/local/etc/scripts, and rather than
+# add this path to PATH, the files within are symlinked to /usr/local/sbin
+# However when new scripts are inherited, say via git, there's no mechanism
+# to automatically create this symlink.
+# This script will be run via systemd periodically to keep the system in-sync
+
+# Define some vars and options
+scriptPath=$SCRIPT_DIR
+sbinPath=/usr/local/sbin
+needLinks=1
+[[ $1 =~ 'n' ]] && dryRun=1 # do nothing, just explain what would happen
+[[ $1 =~ 'v' ]] && verbose=1 # write to stdout what's being done
+
+# help function
+function showHelp {
+echo "Usage:"
+echo "-h     Display this help message"
+echo "-n     Simulate actions, but don't take action"
+echo "-v     Verbose output, describe what's happening"
+}
+
+# capture 'h' before anything else if passed
+[[ $1 =~ 'h' ]] && showHelp && exit 0
+
+# run diff on the two script paths to find anomalies
+function lookForDiffs() {
+differences="$(diff -x '.git*' $sbinPath $scriptPath)"
+[[ $? -eq 1 ]] && needLinks=1 || needLinks=0
+}
+
+# symlink from scriptPath to sbin any scripts
+function createSymlinks() {
+[[ $verbose ]] && echo "Symlinking $scriptPath/$1 to $sbinPath/"
+[[ ! $dryRun ]] && sudo ln -s $scriptPath/$1 $sbinPath/
+}
+
+# if a script only exists in sbin, remove it
+function removeBrokenSymlinks() {
+[[ $verbose ]] && printf "\tRemoving orphaned script $sbinPath/$1\n"
+[[ ! $dryRun ]] && sudo rm $sbinPath/$1
+}
+
+# after looking at the diff, do some decision making on how to process the results
+function processDiffs() {
+while IFS= read -r line; do
+    if [[ "$line" =~ "Only in $scriptPath" ]]; then
+      script=$(echo "$line" | awk '{print $4}')
+      createSymlinks $script
+    elif [[ "$line" =~ "Only in $sbinPath" ]]; then
+      [[ $verbose ]] && printf "\nBroken symlink: \n\t$line\n"
+      script=$(echo "$line" | awk '{print $4}')
+      removeBrokenSymlinks $script
+    fi
+done <<< "$differences"
+}
+
+# run the script
+while [ $needLinks -eq 1 ]
+do
+[[ $dryRun -eq 1 ]] && printf "SIMULATION MODE\n"
+lookForDiffs
+processDiffs
+[[ $dryRun -eq 1 ]] && printf "\n...DRY RUN...no action taken\n" && break
+done
