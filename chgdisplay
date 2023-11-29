@@ -21,7 +21,7 @@ then
 			*)
 				echo "using $whichScreen"
 				discardedScreen=$(echo ${connectedDevices[@]/$whichScreen})
-				xrandr --output $whichScreen --auto
+				xrandr --output $whichScreen --mode 1920x1080
 				[ ! -z $discardedScreen ] && xrandr --output $discardedScreen --off
 				xwallpaper --stretch $HOME/.pape.png
 				if [ $whichScreen == "$laptopScreen" ]
@@ -50,7 +50,7 @@ then
 				*)
 					echo "Setting laptop screen $laptopScreenRelPosition external monitor"
 					notify-send -u normal "Moving $laptopScreen $laptopScreenRelPosition external monitor"
-					xrandr --output HDMI-2 --auto
+					xrandr --output HDMI-2 --mode 1920x1080
 					xrandr --output $laptopScreen --auto
 					xrandr --output $laptopScreen --$laptopScreenRelPosition HDMI-2
 					xwallpaper --stretch $HOME/.pape.png
