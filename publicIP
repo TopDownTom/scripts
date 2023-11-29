@@ -3,7 +3,7 @@
 # Obtain IP address if online, and indicate if VPN tunnels are up
 
 # Exit this script if the site is unreachable, which happens periodically
-curl -s ifconfig.me | grep -i Error: && echo "ifconfig.me error" || \
+[[ `curl --write-out '%{http_code}' --silent --output /dev/null ifconfig.me` != 200 ]] && { echo "ifconfig.me error"; exit 1; } || \
 
 testOnline
 if [ $? -eq 0 ]; then
