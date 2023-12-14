@@ -22,9 +22,9 @@ function gitvars() {
   else
     aheadBehind=''
   fi
-  tag=$(ls $a/refs/tags | tail -n1)
+  tag=$(ls $a/.git/refs/tags | tail -n1)
   [[ -z $tag ]] && tag='' || tag="$tag-"
-  describe=$(tail -n1 $a/logs/HEAD | awk '{print $2}')
+  describe=$(tail -n1 $a/.git/logs/HEAD | awk '{print $2}')
   describeShort=${describe::7}
   printf "${GREEN_BOLD}$branch${NOCOL} "
   printf "${GREEN}$tag$describeShort${NOCOL} "
@@ -33,7 +33,7 @@ function gitvars() {
 }
 
 # find .git dirs after $HOME/, ignoring errors if none found
-gitDirs=($(find $(git rev-parse --show-toplevel) -type d -name .git 2>/dev/null))
+gitDirs=$(git rev-parse --show-toplevel)
 
 # if gitDirs isn't empty, search
 if [ ${#gitDirs[@]} -gt 0 ]; then
