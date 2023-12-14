@@ -33,7 +33,7 @@ function gitvars() {
 }
 
 # find .git dirs after $HOME/, ignoring errors if none found
-gitDirs=($(find $(echo $PWD | cut -d/ -f1-4) -type d -name .git 2>/dev/null))
+gitDirs=($(find $(git rev-parse --show-toplevel) -type d -name .git 2>/dev/null))
 
 # if gitDirs isn't empty, search
 if [ ${#gitDirs[@]} -gt 0 ]; then
