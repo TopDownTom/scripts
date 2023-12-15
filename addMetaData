@@ -1,51 +1,42 @@
 #! /bin/bash
 
-# adds metadata to mp3 files
-# run this script from a 'root' directory like $HOME/music
-# this script assumes there are directories in your root directory corresponding to Artists
-# and within these dirs are Album dirs
-# this script assumes there aren't subdirs in album dirs
+# https://www.reddit.com/r/bash/comments/k7vz1o/comment/gexkxz4/
 
-baseDir=$PWD
-date=$(date +%Y)
-comment='metadata added with addMetaData. see github.com/topdowntom/scripts'
+# NOTE: be really fucking careful running this. shit randomly fails sometimes
+# but i dont really need this anymore to figure out why
 
-for a in "$PWD"/*;
-do
-  dirName="$a"
-  cd "$dirName"
-  artist="${dirName#*$baseDir/}"
-  subdirCheck=$(ls -d */ 2>/dev/null)
-  rc=$(echo $?)
-  if [[ $rc -eq 0 ]]; then
-    for b in "$PWD"/*;
-    do
-      [[ -d $b ]] && cd "$b" || b=$PWD
-      echo "artist: $artist | album: ${b##*/}"
-      for c in *.mp3;
-      do
-        echo working on: "$c"
-        ffmpeg -hide_banner -nostats -loglevel warning -y -i "$c" -c copy\
-         -metadata artist="$artist"\
-         -metadata album_artist="$artist"\
-         -metadata album="${b##*/}"\
-         -metadata title="$c"\
-         "meta.$c"
-        mv "meta.$c" "$c"
-      done
-    done
-  else
-    for d in *.mp3;
-    do
-      echo "artist: $artist | album: ${dirName##*/}"
-      echo working on: "$d"
-      ffmpeg -hide_banner -nostats -loglevel warning -y -i "$d" -c copy\
-      -metadata artist="$artist"\
-      -metadata album_artist="$artist"\
-      -metadata album="${dirName##*/}"\
-      -metadata title="$d"\
-      "meta.$d"
-      mv "meta.$d" "$d"
-    done
-  fi
-done
+startingDir=$PWD
+while IFS= read -rd '' file; do
+  files+=( "$file" )
+  artist=${PWD##*/}
+  artist=${artist%%/*}
+  album=${PWD##*/}
+  title=${files[-1]##*/}
+  echo "artist: $artist"
+  echo "album: $album"
+  echo "adding data to: $title"
+  echo "---------------------------------"
+done < <(find "$startingDir" -maxdepth 1 -type f -print0)
+
+while IFS= read -rd '' file1; do
+  dirArray+=( "${file1}" )
+  cd "${dirArray[-1]}"
+  artist=${PWD##*$startingDir/}
+  artist=${artist%%/*}
+  while IFS= read -rd '' file2; do
+    subfiles+=( "${file2}" )
+    album=${dirArray[-1]##*/}
+    title=${subfiles[-1]##*/}
+    echo "artist: $artist"
+    echo "album: $album"
+    echo "adding data to: $title"
+    echo "---------------------------------"
+    ffmpeg -hide_banner -nostats -loglevel warning -y -i "$file1/$title" -c copy\
+     -metadata artist="$artist"\
+     -metadata album_artist="$artist"\
+     -metadata album="$album"\
+     -metadata title="$title"\
+     "$file1/meta-${title}"
+    mv "$file1/meta-${title}" "$file1/$title"
+  done < <(find "$PWD" -maxdepth 1 -type f -print0)
+done < <(find "$startingDir" -type d -print0)
