@@ -33,7 +33,7 @@ function gitvars() {
 }
 
 # find .git dirs after $HOME/, ignoring errors if none found
-gitDirs=$(git rev-parse --show-toplevel)
+gitDirs=$(git rev-parse --show-toplevel 2>/dev/null)
 
 # if gitDirs isn't empty, search
 if [ ${#gitDirs[@]} -gt 0 ]; then
