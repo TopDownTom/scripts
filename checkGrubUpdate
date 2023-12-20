@@ -2,13 +2,19 @@
 
 # Check if grub-install is newer than right now
 
-#find /usr/bin -mtime +0 -type f -name grub-install
+# if we aren't root, don't run
+[[ `id -u` -gt 0 ]] && exit 1
+
+# get some data about the last pacman transaction
 lastUpdateTransactionRaw=$(awk '/transaction started/ {print $1}' /var/log/pacman.log | tail -n1 | sed  's/\[//; s/\]//')
 lastUpdateEpoch=$(date --date="$lastUpdateTransactionRaw" +%s)
 grubBinBirthTime=$(stat -c %W /usr/bin/grub-install)
+bootDevice=$(lsblk -l | awk '/boot/ {print $1}')
+grubInstallDevice=$(lsblk -no pkname /dev/$bootDevice)
+
 if [ `echo "$grubBinBirthTime - $lastUpdateEpoch" | bc -ql` -ge 0 ]; then
 echo -e "\n\nYour grub-install bin is new as of this update."
 echo "Make sure to run:"
-echo "grub-install --target=i386-pcc <your_drive>"
+echo "grub-install --target=i386-pc /dev/$grubInstallDevice"
 echo -e "grub-mkconfig -o /boot/grub/grub.cfg\n\n"
 fi
