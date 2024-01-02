@@ -1,0 +1,66 @@
+#! /bin/bash
+
+# Creates a Jira post report for an environment based on user inputs
+
+# Path information. These are very specific to my setup. Change the paths to match your documents and repos.
+# Use full paths since this script will usually be called from anywhere.
+read -p "Enter your initials: " init
+initials=${init,,}
+
+# note the initials you put in assume there's a postNotes file in this path
+postNotes=$HOME/shared/post-files/000-post-info.txt
+postTemplate=$HOME/shared/post-files/001-jira-template-post-report.sh
+
+# Read in variables
+read -p "Env name: " ENV
+read -p "Hostname: " HOST
+read -p "Target IP: " IP
+#read -p "Ansible Platform (ex. ansible-prod): " ACMPLATFORM
+
+# define the generated report path
+outputPath=$HOME/shared/post-files/$ENV-jira-report.txt
+
+# post variables - assumes two versioning blocks generated from the version_gatherer
+# one block after the code is cloned and in-place (this is the live versioning now on the clone)
+# or at the beginning of a live post
+
+# another block at the end of your post
+cswapiFrom=$(awk "/$ENV-CSWAPI/{print \$3}" $postNotes | head -n1 | tr -d '\",')
+cswapiTo=$(awk "/$ENV-CSWAPI/{print \$3}" $postNotes | tail -n1 | tr -d '\",')
+flexFrom=$(awk "/$ENV-FLEX/{print \$3}" $postNotes | head -n1 | tr -d '\",')
+flexTo=$(awk "/$ENV-FLEX/{print \$3}" $postNotes | tail -n1 | tr -d '\",')
+apiFrom=$(awk "/$ENV-API/{print \$5}" $postNotes | head -n1 | tr -d '\",')
+apiTo=$(awk "/$ENV-API/{print \$5}" $postNotes | tail -n1 | tr -d '\",')
+appsvrFrom=$(awk "/$ENV-APPSVR/{print \$5}" $postNotes | head -n1 | tr -d '\",')
+appsvrTo=$(awk "/$ENV-APPSVR/{print \$5}" $postNotes | tail -n1 | tr -d '\",')
+ngFrom=$(awk "/$ENV-NG/{print \$5}" $postNotes | head -n1 | tr -d '\",')
+ngTo=$(awk "/$ENV-NG/{print \$5}" $postNotes | tail -n1 | tr -d '\",')
+gdfCoreFrom=$(grep $ENV-GDF-CORE $postNotes | cut -d' ' -f10- | head -n1 | tr -d '\",')
+gdfCoreTo=$(grep $ENV-GDF-CORE $postNotes | cut -d' ' -f10- | tail -n1 | tr -d '\",')
+gdfDevicesFrom=$(awk "/$ENV-GDF-DEVICES/{print \$3}" $postNotes | head -n1 | tr -d '\",')
+gdfDevicesTo=$(awk "/$ENV-GDF-DEVICES/{print \$3}" $postNotes | tail -n1 | tr -d '\",')
+DATE=$(date "+%Y%m%d")
+
+echo "$(sed "s/\$ENV/$ENV/g; \
+	s/\$cswapiFrom/$cswapiFrom/g; \
+	s/\$cswapiTo/$cswapiTo/g; \
+	s/\$flexFrom/$flexFrom/g; \
+	s/\$flexTo/$flexTo/g; \
+	s/\$apiFrom/$apiFrom/g; \
+	s/\$apiTo/$apiTo/g; \
+	s/\$appsvrFrom/$appsvrFrom/g; \
+	s/\$appsvrTo/$appsvrTo/g; \
+	s/\$ngFrom/$ngFrom/g; \
+	s/\$ngTo/$ngTo/g; \
+	s/\$gdfCoreFrom/$gdfCoreFrom/g; \
+	s/\$gdfCoreTo/$gdfCoreTo/g; \
+	s/\$gdfDevicesFrom/$gdfDevicesFrom/g; \
+	s/\$gdfDevicesTo/$gdfDevicesTo/g; \
+	s/\$URL/$IP\/$ENV/g; \
+	s/\$IP/$IP/g; \
+	s/\$DATE/$DATE/g; \
+	s/\$HOST/$HOST/g; " $postTemplate )" > $outputPath
+
+## Also copy the report to the clipboard to post into Jira.
+#echo -e "Template created for this post located at: \n$outputPath" && head -n10 $outputPath
+echo -e "Template created for this post located at: \n $outputPath" && cat $outputPath | xclip -selection clipboard -i && echo "Copied report to clipboard.."

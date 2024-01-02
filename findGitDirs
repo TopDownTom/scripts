@@ -26,6 +26,7 @@ function gitvars() {
   [[ -z $tag ]] && tag='' || tag="$tag-"
   describe=$(tail -n1 $a/.git/logs/HEAD | awk '{print $2}')
   describeShort=${describe::7}
+  printf "${YELLOW}git:>${NOCOL} "
   printf "${GREEN_BOLD}$branch${NOCOL} "
   printf "${GREEN}$tag$describeShort${NOCOL} "
   printf "${RED}$porcelain${NOCOL} "
