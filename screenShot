@@ -52,5 +52,3 @@ case "$typechoice" in
 esac
 
 done
-
-# picom &
