@@ -7,11 +7,12 @@
 # This script will be run via systemd periodically to keep the system in-sync
 
 # Define some vars and options
-scriptPath=$SCRIPT_DIR
+scriptPath=/usr/local/etc/scripts
 sbinPath=/usr/local/sbin
 needLinks=1
 [[ $1 =~ 'n' ]] && dryRun=1 # do nothing, just explain what would happen
 [[ $1 =~ 'v' ]] && verbose=1 # write to stdout what's being done
+[[ $dryRun = 1 ]] && banner="SIMULATION MODE...\n" || banner="Looking for fixes...\n"
 
 # help function
 function showHelp {
@@ -59,8 +60,7 @@ done <<< "$differences"
 # run the script
 while [ $needLinks -eq 1 ]
 do
-[[ $dryRun -eq 1 ]] && printf "SIMULATION MODE\n"
+printf "$banner"
 lookForDiffs
 processDiffs
-[[ $dryRun -eq 1 ]] && printf "\n...DRY RUN...no action taken\n" && break
 done
