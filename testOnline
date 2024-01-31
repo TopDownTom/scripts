@@ -4,9 +4,16 @@
 # Added exit codes to explicitly give an indicator of script status
 # 0 - success; 1 - cat failed; 2 - not online
 
-# test for network conection on each interface
+# Test for network conection on each interface
 for interface in $(ls -r /sys/class/net/ | grep -v lo);
 do
   [[ $(cat /sys/class/net/$interface/carrier 2> /dev/null) = 1 ]] && onLine=1
 done
+
+# If we do have interfaces UP, check if we have outside access
+if [ $onLine ]; then
+  ping -w 2 -c 1 8.8.8.8 1> /dev/null
+  [[ $(echo $?) -gt 0 ]] && exit 3
+fi
+
 [[ ! $onLine ]] && exit 2 || exit 0
