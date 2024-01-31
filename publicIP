@@ -1,17 +1,37 @@
 #! /bin/bash
 
-# Obtain IP address if online, and indicate if VPN tunnels are up
+# Obtain IP address if online, providing only a local IP if not connected to the external network
 
-# Test if we're online, and exit if we aren't
+# Test if we're online, and to what degree
 onlineRC=$(testOnline; echo $?)
-[[ $onlineRC != 0 ]] && { echo "offline"; echo; echo \#b3b3b3; exit 2; }
 
-# Exit this script if the site is unreachable, which happens periodically
-[[ `curl --write-out '%{http_code}' --silent --output /dev/null ifconfig.me` != 200 ]] && { echo "ifconfig.me error"; exit 1; } || \
+function offline {
+  echo offline
+  echo
+  echo \#b3b3b3
+  exit 2
+}
 
-# Check if we have a vpn tunnel up or not
-if [ "$(nmcli c s | grep tun)" ]; then
- echo "T:`protonvpn-cli status | awk '/Server:/ || /IP:/ {print " "$2}' | tr -d '\n'`" && echo && echo \#3cb371
-else
- echo `curl ifconfig.me` && echo && echo \#b22222
-fi
+function onlineNoExternal {
+  defaultIface=$(routel | awk '/default/ {print $5}')
+  defaultIP=$(ip -4 -br address | awk -v dI="$defaultIface" '$0 ~ dI {print $3}' | cut -d'/' -f1)
+  echo "no ext: $defaultIP" && echo && echo \#fffaaa
+  exit 3
+}
+
+function online {
+  # Exit this script if the site is unreachable, which happens periodically
+  [[ `curl --write-out '%{http_code}' --silent --output /dev/null ifconfig.me` != 200 ]] && { echo "ifconfig.me error"; exit 1; } || \
+
+  # Check if we have a vpn tunnel up or not
+  if [ "$(nmcli c s | grep tun)" ]; then
+   echo "T:`protonvpn-cli status | awk '/Server:/ || /IP:/ {print " "$2}' | tr -d '\n'`" && echo && echo \#3cb371
+  else
+   echo `curl --silent ifconfig.me` && echo && echo \#b22222
+  fi
+  exit 0
+}
+
+[[ $onlineRC = 0 ]] && online
+[[ $onlineRC = 2 ]] && offline
+[[ $onlineRC = 3 ]] && onlineNoExternal
