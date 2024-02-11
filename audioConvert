@@ -2,10 +2,10 @@
 
 function converter() {
 	# Get the conversion formats
-	read -p "Filetype FROM: " typeFrom 
+	read -p "Filetype FROM: " typeFrom
 	read -p "Filetype TO: " typeTo
 	# Check if an incorrect starting format was given, exit if true
-	[[ -z `ls | grep -E "*.$typeFrom"` ]] && echo "No files matching type $typeFrom, exiting..." && getOut="true" && return
+	[[ -z `ls | grep ".$typeFrom"` ]] && echo "No files matching type $typeFrom, exiting..." && getOut="true" && return
 	# Loop through all files in $PWD matching starting format, converting each
 	for file in *.$typeFrom;
 	do filename="${file%.$typeFrom}";
@@ -34,7 +34,7 @@ confirmed=false
 while ! $confirmed; do
 	# Show and confirm the current state of the directory
 	echo -e "\nFiles to convert:\n$(ls "$PWD" | column)\n"
-	read -p "Do these files look correct? (y/N) " confirm 
+	read -p "Do these files look correct? (y/N) " confirm
 	# If the directory is where you intend to be, proceed
 	[[ "$confirm" == "y" ]] && confirmed=true && converter && removeOld && break
 	# If the directory is otherwise incorrect, choose N and exit this script
