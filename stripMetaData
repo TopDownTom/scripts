@@ -1,0 +1,51 @@
+#! /bin/bash
+
+# A simple script to remove metadata from files within a given dir or the PWD.
+
+# Define some colors and formatting
+RED='\e[1;31m' GREEN='\e[1;32m' YELLOW='\e[1;33m'
+BLUE='\e[1;34m' PURPLE='\e[1;35m' NOCOL='\e[0m'
+UNDERLINE='\e[4m'
+
+# Declare the array of found files
+readarray -d '' files < <(find ${1:-$PWD} -type f -print0)
+
+# Loop over array elements
+for file in "${files[@]}"
+do
+  # Get the filetype and clean up the path by picking out the filename and its containing dir
+  fileType=$(file -i "$file" | rev | cut -d':' -f1 | rev | awk '{print $1}' | tr ";" " ")
+  cleanName=$(echo $file | rev | cut -d'/' -f1,2 | rev)
+  # If the file is a video of any kind, don't mogrify. It can take very long, or at worst crash and burn
+  if [[ $fileType =~ image ]]; then
+    # If it's an image, lets strip the metadata
+    printf "${GREEN}IMAGE${NOCOL} - ${UNDERLINE}Stripping metadata from:${NOCOL} ${BLUE}$cleanName${NOCOL} ..."
+    # This is a weird way to run a command while keeping the stderr, should it have any
+    RESULT=$( { mogrify -strip "$file"; } 2>&1 )
+    # If stderr exists, tell the user while running then set error=1
+    [[ $? == 0 ]] && printf "${GREEN} complete${NOCOL}\n" || { printf "${RED} error ${NOCOL}\n"; error=1; }
+  else
+    # If there are non-media files, skip those too
+    printf "${RED}$fileType${NOCOL} - ${UNDERLINE}Not stripping metadata from:${NOCOL} ${BLUE}$cleanName${NOCOL}${YELLOW} ...skipping..${NOCOL}\n"
+  fi
+
+  # If an error occurred this loop interval, process it
+  if [[ $error -gt 0 ]]; then
+  cleanup=$(printf "\n${RED}There was a problem with $file${NOCOL}\n↳ $RESULT\n")
+  # Add the formatted item to the problemChildren array
+  problemChildren+=$cleanup
+  # Reset the error bit
+  error=0
+  fi
+
+done
+
+
+# If there were problem children, report them, but otherwise just indicate the script is complete.
+if [[ ${#problemChildren[@]} -gt 0 ]]; then
+  printf "\n${PURPLE}Complete, but with errors...see below: ${NOCOL}\n"
+  # Need echo here, because printf doesnt play nice with the "whole array ([@])"
+  echo "${problemChildren[@]}"
+else
+  printf "\n${PURPLE}Complete${NOCOL}\n"
+fi
