@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # grep the pacman log for errors from today's run
-warnings=$(grep warning: /var/log/pacman.log | grep `date +%F`)
+warnings=$(grep $(date +%F) /var/log/pacman.log | sed -n -e 's/^.*warning: /warning: /p' | sort -u)
 
 # if warnings is populated, show them
 [[ ! -z $warnings ]] && echo -e "\nBelow are warnings from pacman:\n\n$warnings\n\n"
