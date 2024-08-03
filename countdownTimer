@@ -10,7 +10,7 @@ decimalMinutesToSeconds=$(($secRemaining%60))
 
 if [ $playerStatus = "playing" ] || [ $playerStatus = "paused" ]; then
   echo -E "$minutes:${decimalMinutesToSeconds:0:2}" && echo
-	[[ $playerStatus = "playing" ]] && echo "#e69809" || echo "#b3b3b3" # if playing orange, paused grey
+  [[ $playerStatus = "playing" ]] && echo "#e69809" || echo "#b3b3b3" # if playing orange, paused grey
   pkill -SIGRTMIN+1 i3blocks
 else
 echo ""
