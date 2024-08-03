@@ -4,23 +4,29 @@
 videoDir=$HOME/videos/yt
 failedURLs=/tmp/failed_video_urls
 opts=''
-link=$1
+link=${1}
 
 download () {
-  cd $videoDir
-  filename=$(/usr/bin/yt-dlp "$link" --print filename --skip-download 2>/dev/null)
+  filename=$(/usr/bin/yt-dlp "$link" --print filename --skip-download 2> /dev/null)
+  randomVidId=$RANDOM
   notify-send "Downloading: $filename"
-  /usr/bin/yt-dlp $opts "$link" --check-formats
-  rc=$?
-  [[ $rc == 0 ]] && status=0 || status=1
+  tmux new-session -d -s $randomVidId
+  tmux send-keys -t $randomVidId "cd $videoDir; /usr/bin/yt-dlp '$opts' '${link}'; [[ $? == 0 ]] && exit || echo bad" Enter; #rc=$(echo $?)
+
+#  if [ $rc == 0 ];
+#  then
+##    tmux send-keys -t $randomVidId "exit" Enter
+#    ls
+#  else
+#    notify-send --urgency=critical "failed: $filename"
+#    echo "$filename -> $link" >> $failedURLs
+#    sort -uo $failedURLs $failedURLs
+#  fi
 }
 
 if [[ "$1" =~ "odysee.com" ]]; then
-  download
+  download & disown
 elif [[ "$1" =~ "youtube" ]]; then
-  opts='-f 22'
-  download
+  opts='-f bv*[height<2160]+bestaudio'
+  download & disown
 fi
-
-[[ "$status" == 0 ]] && notify-send "Completed DL: $filename"
-[[ "$status" == 1 ]] && notify-send --urgency=critical "failed: $filename" && echo "$filename -> $link" >> $failedURLs && sort -uo $failedURLs $failedURLs
