@@ -7,7 +7,7 @@ numCores=$(grep -c ^processor /proc/cpuinfo)
 speed=$( echo $speed/$numCores |bc )
 
 if [ "${#speed}" -gt 3 ]; then
-	echo "${speed%???}.${speed:1:2} GB"
+  echo "${speed%???}.${speed:1:2} GB"
 else
-	echo "$speed MB"
+  echo "$speed MB"
 fi
