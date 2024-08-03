@@ -5,6 +5,6 @@ cd /usr/local/etc/user_configs/dmenu/.config/dmenu
 # redirect all stdout to /dev/null, keep stderr
 {
   make
-	sudo make install
-	make clean
+  sudo make install
+  make clean
 } 1>/dev/null
