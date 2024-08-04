@@ -17,9 +17,9 @@ playerStatus="$(cmus-remote -Q | awk '/status/{print $2}')" # get player status
 [[ ${#playing} -gt 60 ]] && playing="${playing:0:60}..."
 
 if [ $playerStatus = "playing" ] || [ $playerStatus = "paused" ]; then
-	echo $playing && echo # define script output && set blank first echo statement for i3blocks
-	[[ $playerStatus = "playing" ]] && echo "#e69809" || echo "#b3b3b3" # if playing orange, paused grey
-	pkill -SIGRTMIN+1 i3blocks
+  echo $playing && echo # define script output && set blank first echo statement for i3blocks
+  [[ $playerStatus = "playing" ]] && echo "#e69809" || echo "#b3b3b3" # if playing orange, paused grey
+  pkill -SIGRTMIN+1 i3blocks
 else
-	echo "" # if cmus not running, display nothing
+  echo "" # if cmus not running, display nothing
 fi

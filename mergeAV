@@ -13,19 +13,19 @@ videoFiles=($(ls | grep mp4 | sed 's/-video//'))
 audioFiles=($(ls | grep m4a))
 len=$(( ${#videoFiles[@]} - 1 ))
 if [ $len == 0 ]; then
-	for i in {0..0}
-	do
-	echo Running: ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
-        ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
-#	echo removing "${videoFiles[$i]}-video" && rm "${videoFiles[$i]}-video"
-#	echo removing "${audioFiles[$i]}" && rm "${audioFiles[$i]}"
+  for i in {0..0}
+  do
+  echo Running: ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
+    ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
+#  echo removing "${videoFiles[$i]}-video" && rm "${videoFiles[$i]}-video"
+#  echo removing "${audioFiles[$i]}" && rm "${audioFiles[$i]}"
 done
 else
-	for i in {0..$len}
-	do
-	echo Running: ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
-        ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
-#	echo removing "${videoFiles[$i]}-video" && rm "${videoFiles[$i]}-video"
-#	echo removing "${audioFiles[$i]}" && rm "${audioFiles[$i]}"
+  for i in {0..$len}
+  do
+  echo Running: ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
+    ffmpeg -hide_banner -nostats -loglevel warning -i "${videoFiles[$i]}-video" -i "${audioFiles[$i]}" -map 0:0 -map 1:0 -shortest res/"${videoFiles[$i]}"
+#  echo removing "${videoFiles[$i]}-video" && rm "${videoFiles[$i]}-video"
+#  echo removing "${audioFiles[$i]}" && rm "${audioFiles[$i]}"
 done
 fi

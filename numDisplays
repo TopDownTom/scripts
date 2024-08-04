@@ -5,5 +5,5 @@
 connectedDisplays=($(xrandr | awk '/ connected /{print $1}'))
 for ((i = 1; i < ${#connectedDisplays[@]}; i++));
 do
-	export DISPLAY$i="${connectedDisplays[$i]}"
+  export DISPLAY$i="${connectedDisplays[$i]}"
 done

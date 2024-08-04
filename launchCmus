@@ -4,9 +4,9 @@
 
 if pgrep -x "cmus" > /dev/null
 then
-	cmus-remote --pause
+  cmus-remote --pause
 else
-	i3-msg -t run_command 'exec urxvtc -name cmus -e cmus' # launches cmus in scratchpad (see i3/config)
-	cmus-remote --pause
+  i3-msg -t run_command 'exec urxvtc -name cmus -e cmus' # launches cmus in scratchpad (see i3/config)
+  cmus-remote --pause
 fi
 exit

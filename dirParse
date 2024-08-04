@@ -7,11 +7,11 @@
 
 
 # This script will process all files in some directory, including all subdirectories within. In this case I converted all
-# music within /home/user/Music from .m4a to .mp3. 
-# BE SURE TO COMMENT OUT THE rm *.$typeFrom LINES IF YOU DON'T WANT TO ERASE THE PREVIOUS INFORMATION. 
-# 
+# music within /home/user/Music from .m4a to .mp3.
+# BE SURE TO COMMENT OUT THE rm *.$typeFrom LINES IF YOU DON'T WANT TO ERASE THE PREVIOUS INFORMATION.
+#
 # This script can be used as a general purpose directory-tree processing script, modifying all the subdirectories within a
-# starting directory. 
+# starting directory.
 
 
 #typeFrom=$( $1 | dmenu -p "Please type filetype FROM:" )
@@ -21,38 +21,38 @@ typeTo=mp3
 
 for a in $PWD/*/;
 do dirName="echo $a";
-	echo "In $PWD"
-	dirName=${dirName:5}
-	cd "$dirName"
-	echo "In $PWD"
+  echo "In $PWD"
+  dirName=${dirName:5}
+  cd "$dirName"
+  echo "In $PWD"
 
-	for b in *.$typeFrom; # This will process all files within the starting directory
-	do name1=`echo "${b%.*}"`;
-		ffmpeg -y -i "$b" "${name1}.$typeTo";
-		echo "Processing $name1"
-	done
-#	rm *.$typeFrom
-	
-	for c in */; # This jumps into each subdirectory
-	do subDir="echo $c";
-		subDir=${subDir:5}
-		cd "$subDir"
-		echo "In $PWD"
-#		sleep .4s 
+  for b in *.$typeFrom; # This will process all files within the starting directory
+  do name1=`echo "${b%.*}"`;
+    ffmpeg -y -i "$b" "${name1}.$typeTo";
+    echo "Processing $name1"
+  done
+#  rm *.$typeFrom
 
-		for d in *.$typeFrom; # This formats files within the subdirectories
-		do name2=`echo "${d%.*}"`;
-			ffmpeg -y -i "$d" "${name2}.$typeTo";
-			echo "Processing $name2"
-		done
-#		rm *.$typeFrom
-	cd ..
-	done
-#	rm *.$typeFrom
+  for c in */; # This jumps into each subdirectory
+  do subDir="echo $c";
+    subDir=${subDir:5}
+    cd "$subDir"
+    echo "In $PWD"
+#    sleep .4s
+
+    for d in *.$typeFrom; # This formats files within the subdirectories
+    do name2=`echo "${d%.*}"`;
+      ffmpeg -y -i "$d" "${name2}.$typeTo";
+      echo "Processing $name2"
+    done
+#    rm *.$typeFrom
+  cd ..
+  done
+#  rm *.$typeFrom
 done
 
 notify-send -u critical "done removing"
-# Beep twice when task is complete. 
+# Beep twice when task is complete.
 #( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.2s ; kill -9 $pid
 #( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.2s ; kill -9 $pid
 #typeFrom=$( $1 | dmenu -p "Please type filetype FROM:" )
@@ -60,35 +60,35 @@ notify-send -u critical "done removing"
 #
 #for a in $PWD/*/;
 #do dirName="echo $a";
-#	echo "In $PWD"
-#	dirName=${dirName:5}
-#	cd "$dirName"
-#	echo "In $PWD"
+#  echo "In $PWD"
+#  dirName=${dirName:5}
+#  cd "$dirName"
+#  echo "In $PWD"
 #
-#	for b in *.$typeFrom; # This will process all files within the starting directory
-#	do name1=`echo "${b%.*}"`;
-#		ffmpeg -y -i "$b" "${name1}.$typeTo";
-##		echo "Processing $name1"
-#	done
-##	rm *.$typeFrom
-#	
-#	for c in */; # This jumps into each subdirectory
-#	do subDir="echo $c";
-#		subDir=${subDir:5}
-#		cd "$subDir"
-#		echo "In $PWD"
+#  for b in *.$typeFrom; # This will process all files within the starting directory
+#  do name1=`echo "${b%.*}"`;
+#    ffmpeg -y -i "$b" "${name1}.$typeTo";
+##    echo "Processing $name1"
+#  done
+##  rm *.$typeFrom
 #
-#		for d in *.$typeFrom; # This formats files within the subdirectories
-#		do name2=`echo "${d%.*}"`;
-#			ffmpeg -y -i "$d" "${name2}.$typeTo";
-##			echo "Processing $name2"
-#		done
-##		rm *.$typeFrom
-#	cd ..
-#	done
-##	rm *.$typeFrom
+#  for c in */; # This jumps into each subdirectory
+#  do subDir="echo $c";
+#    subDir=${subDir:5}
+#    cd "$subDir"
+#    echo "In $PWD"
+#
+#    for d in *.$typeFrom; # This formats files within the subdirectories
+#    do name2=`echo "${d%.*}"`;
+#      ffmpeg -y -i "$d" "${name2}.$typeTo";
+##      echo "Processing $name2"
+#    done
+##    rm *.$typeFrom
+#  cd ..
+#  done
+##  rm *.$typeFrom
 #done
 #
-## Beep twice when task is complete. 
+## Beep twice when task is complete.
 #( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.2s ; kill -9 $pid
 #( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.2s ; kill -9 $pid

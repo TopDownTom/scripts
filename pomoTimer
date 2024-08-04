@@ -18,47 +18,47 @@ studyTimer=$(( 25 * 60 ))
 ( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid
 notify-send -u low "Begin study session. $pomSessions remaining."
 
-	while (( $(bc <<< "$studyTimer > 0") ))
-	do
-		studyTimer=$( echo "$studyTimer-1" | bc ) # count down the study time
-		sleep 1s
-	done
+  while (( $(bc <<< "$studyTimer > 0") ))
+  do
+    studyTimer=$( echo "$studyTimer-1" | bc ) # count down the study time
+    sleep 1s
+  done
 
 pomSessions=$( echo "$pomSessions-1" | bc ) # count down sessions
 
 if [ $pomSessions = 0 ]; then # if that was the final session don't rest
-	break
+  break
 fi
 
 ( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid
 notify-send -u low "Study time is up, rest for 5 minutes."
 
-	while (( $(bc <<< "$restTimer > 0") ))
-	do
-		restTimer=$( echo "$restTimer-1" | bc ) # count down the rest time
-		sleep 1s
-	done
+  while (( $(bc <<< "$restTimer > 0") ))
+  do
+    restTimer=$( echo "$restTimer-1" | bc ) # count down the rest time
+    sleep 1s
+  done
 done
 
 notify-send -u low "You have finished your sessions, see dmenu prompt."
 
 # Long rest prompt
 if [ $longBreak == "y" ]; then
-	longBreakDuration=$( $1 | dmenu -p "How long do you want to break? (mins):" )
-	longBreakDuration=$( echo "$longBreakDuration * 60" | bc ) # convert to seconds, this format allows for parts of minutes (e.g. 1.5 minutes) which we don't need for restTimer and studyTimer as they are statically defined as 5 and 25 by this method
+  longBreakDuration=$( $1 | dmenu -p "How long do you want to break? (mins):" )
+  longBreakDuration=$( echo "$longBreakDuration * 60" | bc ) # convert to seconds, this format allows for parts of minutes (e.g. 1.5 minutes) which we don't need for restTimer and studyTimer as they are statically defined as 5 and 25 by this method
 
-	while (( $(bc <<< "$longBreakDuration > 0") ))
-	do
-		longBreakDuration=$( echo "$longBreakDuration-1" | bc )
-		sleep 1s
-	done
-	( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid
-	notify-send -u low "Your long break has finished, see dmenu prompt to start another set of sessions."
-	bash $SCRIPT_DIR/pomoTimer # runs this script again.
+  while (( $(bc <<< "$longBreakDuration > 0") ))
+  do
+    longBreakDuration=$( echo "$longBreakDuration-1" | bc )
+    sleep 1s
+  done
+  ( speaker-test -t sine -f 1000 )& pid=$! ; sleep 0.1s ; kill -9 $pid
+  notify-send -u low "Your long break has finished, see dmenu prompt to start another set of sessions."
+  bash $SCRIPT_DIR/pomoTimer # runs this script again.
 
 else
-	( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.1s ; kill -9 $pid
-	( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.1s ; kill -9 $pid
-	notify-send -u low "You have completed all of your study sessions."
+  ( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.1s ; kill -9 $pid
+  ( speaker-test -t sine -f 500 )& pid=$! ; sleep 0.1s ; kill -9 $pid
+  notify-send -u low "You have completed all of your study sessions."
 
 fi

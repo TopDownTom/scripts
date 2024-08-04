@@ -9,7 +9,7 @@ do
   case $res in
     Exit)
       printf '\n...Exiting, no changes to resolution made... \n\n'
-           	break
+      break
       ;;
     *)
       notify-send "Changing External Resolution To: $res"

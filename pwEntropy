@@ -18,26 +18,26 @@ totCharSpace=0 # total character space occupied by your password string
 # Check each character in the provided password
 for i in `seq 1 $pwLen`
 do
-	# Match the appropriate character type, and set the "character space" each character resides in
-	# Upper/Lower case (26 assuming US alphabet): a-zA-Z
-	# Digits (10): 0-9
-	# Punctuation (32): ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
-	#
-	# Note: we lose two possible characters by preventing spaces and spaces, but this doesn't significantly affect our
-	# entropy calculation or total possible entropy
-	[[ "${pw:$i-1:1}" =~ [[:blank:]] ]] && printf "\nPassword must not contain tabs or spaces, try again.\n" && exit 1
-	[[ "${pw:$i-1:1}" =~ [[:upper:]] ]] && charSpace=26 && hasUpper=1 && pi[i]=0.03846
-	[[ "${pw:$i-1:1}" =~ [[:lower:]] ]] && charSpace=26 && hasLower=1 && pi[i]=0.03846
-	[[ "${pw:$i-1:1}" =~ [[:digit:]] ]] && charSpace=10 && hasDigit=1 && pi[i]=0.1
-	[[ "${pw:$i-1:1}" =~ [[:punct:]] ]] && charSpace=32 && hasPunct=1 && pi[i]=0.03125
+  # Match the appropriate character type, and set the "character space" each character resides in
+  # Upper/Lower case (26 assuming US alphabet): a-zA-Z
+  # Digits (10): 0-9
+  # Punctuation (32): ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+  #
+  # Note: we lose two possible characters by preventing spaces and spaces, but this doesn't significantly affect our
+  # entropy calculation or total possible entropy
+  [[ "${pw:$i-1:1}" =~ [[:blank:]] ]] && printf "\nPassword must not contain tabs or spaces, try again.\n" && exit 1
+  [[ "${pw:$i-1:1}" =~ [[:upper:]] ]] && charSpace=26 && hasUpper=1 && pi[i]=0.03846
+  [[ "${pw:$i-1:1}" =~ [[:lower:]] ]] && charSpace=26 && hasLower=1 && pi[i]=0.03846
+  [[ "${pw:$i-1:1}" =~ [[:digit:]] ]] && charSpace=10 && hasDigit=1 && pi[i]=0.1
+  [[ "${pw:$i-1:1}" =~ [[:punct:]] ]] && charSpace=32 && hasPunct=1 && pi[i]=0.03125
 
-	# Calc the entropy of this character, adding it to the previous total entropy of the string
-	# h = - sum1->n (p[i] * log2(p[i]))
-	for j in `seq 1 $charSpace`
-	do
-		iter=$(echo "-${pi[$i]}*(l(${pi[$i]})/l(2))" | bc -l)
-		h=$(echo "$h+$iter" | bc -l)
-	done
+  # Calc the entropy of this character, adding it to the previous total entropy of the string
+  # h = - sum1->n (p[i] * log2(p[i]))
+  for j in `seq 1 $charSpace`
+  do
+    iter=$(echo "-${pi[$i]}*(l(${pi[$i]})/l(2))" | bc -l)
+    h=$(echo "$h+$iter" | bc -l)
+  done
 done
 
 # Calc total character space, adding to total only once so long as at least one character matches
