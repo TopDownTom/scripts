@@ -1,3 +1,0 @@
-#! /bin/bash
-
-youtube-dl -f 22 -i -o "%(title)s.mp4" https://youtube.com/watch?v="$1"

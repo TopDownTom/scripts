@@ -6,7 +6,7 @@ res=$( xrandr -q --current | grep '*' | awk '{print $1}' | head -n 1 )
 date=$( date +%Y-%m-%e-%I-%M )
 if ! ( ls | grep screenCasts > /dev/null )
 then
-	mkdir screenCasts
+  mkdir screenCasts
 fi
 outputDir="$PWD/screenCasts"
 name=$( $1 | dmenu -p "Video Title?" )
@@ -14,14 +14,13 @@ name=$( $1 | dmenu -p "Video Title?" )
 read -p "What format? (video/audio/both) " recordingFormat
 # Video Only - No cutoff of video
 if [ $recordingFormat == "video" ]; then
-	ffmpeg -f x11grab -draw_mouse 1 -s $res -i :0.0 -r 60 -vcodec libx264 $outputDir/$date_$name.mkv 
+  ffmpeg -f x11grab -draw_mouse 1 -s $res -i :0.0 -r 60 -vcodec libx264 $outputDir/$date_$name.mkv
 # This is only audio, and there is no cutoff of the audio and/or video when recording this way
 elif [ $recordingFormat == "audio" ]; then
-	ffmpeg -f pulse -ac 2 -i default -filter:a "volume=15.5" $outputDir/$date_$name.mkv
-# Video+Audio - Has Cutoff of both near the last five seconds 
+  ffmpeg -f pulse -ac 2 -i default -filter:a "volume=15.5" $outputDir/$date_$name.mkv
+# Video+Audio - Has Cutoff of both near the last five seconds
 elif [ $recordingFormat == "both" ]; then
-	ffmpeg -video_size $res -framerate 20 -f x11grab -draw_mouse 1 -i :0.0 -f pulse -ac 2 -i default -filter:a "volume=15.5" $outputDir/$date_$name.mkv
-else 
-	notify-send -t 3000 "Incorrect Choice - Try again"
+  ffmpeg -video_size $res -framerate 20 -f x11grab -draw_mouse 1 -i :0.0 -f pulse -ac 2 -i default -filter:a "volume=15.5" $outputDir/$date_$name.mkv
+else
+  notify-send -t 3000 "Incorrect Choice - Try again"
 fi
-

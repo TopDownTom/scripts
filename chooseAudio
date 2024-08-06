@@ -6,17 +6,17 @@ primaryScreen=$(xrandr --query | grep primary | awk '{print $1}')
 printf 'Select Audio Playback Device:\n'
 select screenChoice in ${choice[@]} Exit;
 do
-	case $screenChoice in
-		Exit)
-			printf '\n...Exiting, doing nothing...\n\n' && break ;;
-		*)
-			screenChoice=$screenChoice && break ;;
-	esac
+  case $screenChoice in
+    Exit)
+      printf '\n...Exiting, doing nothing...\n\n' && break ;;
+    *)
+      screenChoice=$screenChoice && break ;;
+  esac
 done
 
 if [ $screenChoice != "" ] && [ $screenChoice != "Exit" ]; then
   # if the profile doesn't work, try others with the following results
   # pacmd list-cards | grep "profiles:" -A50 | grep "output:" | grep -v "available: no"
-	[[ $screenChoice == $primaryScreen ]] && audioOutput="output:analog-stereo" || audioOutput="output:hdmi-stereo+input:analog-stereo"
-	pacmd set-card-profile 0 $audioOutput
+  [[ $screenChoice == $primaryScreen ]] && audioOutput="output:analog-stereo" || audioOutput="output:hdmi-stereo+input:analog-stereo"
+  pacmd set-card-profile 0 $audioOutput
 fi

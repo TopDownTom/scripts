@@ -5,6 +5,8 @@
 # NOTE: be really fucking careful running this. shit randomly fails sometimes
 # but i dont really need this anymore to figure out why
 
+source $HOME/.shell_colors
+
 startingDir=$PWD
 while IFS= read -rd '' file; do
   files+=( "$file" )
@@ -12,7 +14,8 @@ while IFS= read -rd '' file; do
   artist=${artist%%/*}
   album=${PWD##*/}
   title=${files[-1]##*/}
-  echo "artist: $artist"
+  printf "${YELLOW} ---------------------------------${NOCOL}\n"
+  printf "${BLUE}artist: $artist${NOCOL}\n"
   echo "album: $album"
   echo "adding data to: $title"
   echo "---------------------------------"
@@ -24,13 +27,15 @@ while IFS= read -rd '' file1; do
   artist=${PWD##*$startingDir/}
   artist=${artist%%/*}
   while IFS= read -rd '' file2; do
+    width=$(tput cols)
     subfiles+=( "${file2}" )
     album=${dirArray[-1]##*/}
     title=${subfiles[-1]##*/}
-    echo "artist: $artist"
-    echo "album: $album"
-    echo "adding data to: $title"
-    echo "---------------------------------"
+    printf ${YELLOW}%0${width}s|tr \  -${NOCOL}
+    printf "${PURPLE}${UNDERLINE}adding data to:${NOCOL} $title\n"
+    printf "${BLUE}${UNDERLINE}artist:${NOCOL} $artist\n"
+    printf "${BLUE}${UNDERLINE}album:${NOCOL} $album\n"
+    printf "${GREEN}...${NOCOL}"
     ffmpeg -hide_banner -nostats -loglevel warning -y -i "$file1/$title" -c copy\
      -metadata artist="$artist"\
      -metadata album_artist="$artist"\
@@ -38,5 +43,8 @@ while IFS= read -rd '' file1; do
      -metadata title="$title"\
      "$file1/meta-${title}"
     mv "$file1/meta-${title}" "$file1/$title"
+    printf "${GREEN}done${NOCOL}\n"
+    printf ${YELLOW}%0${width}s|tr \  -${NOCOL}
+    echo; echo
   done < <(find "$PWD" -maxdepth 1 -type f -print0)
 done < <(find "$startingDir" -type d -print0)

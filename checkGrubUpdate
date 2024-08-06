@@ -13,8 +13,8 @@ bootDevice=$(lsblk -l | awk '/boot/ {print $1}')
 grubInstallDevice=$(lsblk -no pkname /dev/$bootDevice)
 
 if [ `echo "$grubBinBirthTime - $lastUpdateEpoch" | bc -ql` -ge 0 ]; then
-echo -e "\n\nYour grub-install bin is new as of this update."
-echo "Make sure to run:"
-echo "grub-install --target=i386-pc /dev/$grubInstallDevice"
-echo -e "grub-mkconfig -o /boot/grub/grub.cfg\n\n"
+  echo -e "\n\nYour grub-install bin is new as of this update."
+  echo "Make sure to run:"
+  echo "grub-install --target=i386-pc /dev/$grubInstallDevice"
+  echo -e "grub-mkconfig -o /boot/grub/grub.cfg\n\n"
 fi
