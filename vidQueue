@@ -3,7 +3,6 @@
 # This script downloads yt videos to a dir and notifies the user on start and completion
 videoDir=$HOME/videos/yt
 failedURLs=/tmp/failed_video_urls
-opts=''
 link=${1}
 
 download () {
@@ -11,7 +10,7 @@ download () {
   randomVidId=$RANDOM
   notify-send "Downloading: $filename"
   tmux new-session -d -s $randomVidId
-  tmux send-keys -t $randomVidId "cd $videoDir; /usr/bin/yt-dlp '$opts' '${link}' && { notify-send "Completed: $filename"; exit; } || { notify-send -u critical "failed: $filename - $randomVidId"; }" Enter;
+  tmux send-keys -t $randomVidId "cd $videoDir; /usr/bin/yt-dlp ${opts:-} '${link}' && { notify-send "Completed: $filename"; exit; } || { notify-send -u critical "failed: $filename - $randomVidId"; }" Enter;
 
 }
 
