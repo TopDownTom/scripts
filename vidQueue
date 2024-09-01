@@ -11,17 +11,8 @@ download () {
   randomVidId=$RANDOM
   notify-send "Downloading: $filename"
   tmux new-session -d -s $randomVidId
-  tmux send-keys -t $randomVidId "cd $videoDir; /usr/bin/yt-dlp '$opts' '${link}'; [[ $? == 0 ]] && exit || echo bad" Enter; #rc=$(echo $?)
+  tmux send-keys -t $randomVidId "cd $videoDir; /usr/bin/yt-dlp '$opts' '${link}' && { notify-send "Completed: $filename"; exit; } || { notify-send -u critical "failed: $filename - $randomVidId"; }" Enter;
 
-#  if [ $rc == 0 ];
-#  then
-##    tmux send-keys -t $randomVidId "exit" Enter
-#    ls
-#  else
-#    notify-send --urgency=critical "failed: $filename"
-#    echo "$filename -> $link" >> $failedURLs
-#    sort -uo $failedURLs $failedURLs
-#  fi
 }
 
 if [[ "$1" =~ "odysee.com" ]]; then
