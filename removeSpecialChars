@@ -28,7 +28,8 @@ then
 fi
 
 # Make an array of the files from the input. May only be a single file
-readarray -t files < <(find $searchDir -maxdepth 1 -type f)
+# Don't fuck with partially downloaded files
+readarray -t files < <(find $searchDir -maxdepth 1 -type f ! -iname '*.part')
 
 # Define associative array
 declare -A specialChars
