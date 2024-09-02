@@ -7,6 +7,7 @@ link=${1}
 
 download () {
   filename=$(/usr/bin/yt-dlp "$link" --print filename --skip-download 2> /dev/null)
+  [[ "$filename" =~ "!" ]] && filename=${filename//!/\\!} # remove ! characters which cause script to fail
   randomVidId=$RANDOM
   notify-send -u low "Downloading: $filename"
   tmux new-session -d -s $randomVidId
