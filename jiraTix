@@ -4,10 +4,7 @@
 
 # Path information. These are very specific to my setup. Change the paths to match your documents and repos.
 # Use full paths since this script will usually be called from anywhere.
-read -p "Enter your initials: " init
-initials=${init,,}
 
-# note the initials you put in assume there's a postNotes file in this path
 postNotes=$HOME/shared/post-files/000-post-info.txt
 postTemplate=$HOME/shared/post-files/001-jira-template-post-report.sh
 
