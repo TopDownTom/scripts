@@ -9,4 +9,4 @@ else
   i3-msg -t run_command 'exec urxvtc -name cmus -e cmus' # launches cmus in scratchpad (see i3/config)
   cmus-remote --pause
 fi
-exit
+exit 0
