@@ -15,21 +15,19 @@ function offline {
 function onlineNoExternal {
   defaultIface=$(routel | awk '/default/ {print $5}')
   defaultIP=$(ip -4 -br address | awk -v dI="$defaultIface" '$0 ~ dI {print $3}' | cut -d'/' -f1)
-  echo "no ext: $defaultIP" && echo && echo \#fffaaa
+  echo "no external: $defaultIP" && echo && echo \#fffaaa
   exit 3
 }
 
 function online {
   # Exit this script if the site is unreachable, which happens periodically
-  [[ `curl --write-out '%{http_code}' --silent --output /dev/null ifconfig.me` != 200 ]] && { echo "ifconfig.me error"; exit 1; } || \
+  [[ `curl --write-out '%{http_code}' --silent --output /dev/null https://topdowntom.space/ip` != 200 ]] && { echo "tdt error"; exit 1; } || \
 
-  # Check if we have a vpn tunnel up or not
-  if [ "$(nmcli c s | grep tun)" ]; then
-   echo "T:`protonvpn-cli status | awk '/Server:/ || /IP:/ {print " "$2}' | tr -d '\n'`" && echo && echo \#3cb371
-  else
-   echo `curl --silent ifconfig.me` && echo && echo \#b22222
-  fi
-  exit 0
+  # Check if there's a VPN tunnel, and if so give us some output modifiers
+  [[ $(nmcli c s | grep tun) ]] && { output='T: '; ipColor=\#3cb371; }
+
+  # Give us our IP
+  echo ${output:- }`curl --silent https://topdowntom.space/ip` && echo && echo ${ipColor:-\#b2222} && exit 0
 }
 
 [[ $onlineRC = 0 ]] && online
