@@ -15,12 +15,12 @@ function checkPath() {
 }
 
 function converter() {
-  cd ${dirPath}
+  cd "${dirPath}"
   # Get the conversion formats
   read -p "Filetype FROM: " typeFrom
   read -p "Filetype TO: " typeTo
   # Check if an incorrect starting format was given, exit if true
-  [[ -z `ls ${dirPath} | grep ".$typeFrom"` ]] && echo "No files matching type $typeFrom, exiting..." && getOut="true" && return
+  [[ -z `ls "${dirPath}" | grep ".$typeFrom"` ]] && echo "No files matching type $typeFrom, exiting..." && getOut="true" && return
   # Loop through all files in $searchDir matching starting format, converting each
   for file in *.$typeFrom;
   do filename="${file%.$typeFrom}";
@@ -35,7 +35,7 @@ function converter() {
 function removeOld() {
   # If incorrect starting format was given, exit immediately
   [[ "$getOut" == "true" ]] && return
-  cd ${dirPath}
+  cd "${dirPath}"
   # Show and confirm the current state of the directory prior to removal
   echo -e "\n\nCurrent Directory:\n$(ls "${dirPath}" | column)\n"
   read -p "Do you want to delete the original ($typeFrom) files? (y/N) " confirmDelete
