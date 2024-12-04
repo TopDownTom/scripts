@@ -3,30 +3,24 @@
 # This script downloads yt videos to a dir and notifies the user on start and completion
 videoDir=$HOME/videos/yt
 failedURLs=/tmp/failed_video_urls
-opts=''
 link=${1}
 
 download () {
   filename=$(/usr/bin/yt-dlp "$link" --print filename --skip-download 2> /dev/null)
+  [[ "$filename" =~ "!" ]] && filename=${filename//!/\\!} # remove ! characters which cause script to fail
+  [[ "$filename" =~ "(" ]] && filename=${filename//\(/\\(} # remove ! characters which cause script to fail
+  [[ "$filename" =~ ")" ]] && filename=${filename//\)/\\)} # remove ! characters which cause script to fail
   randomVidId=$RANDOM
-  notify-send "Downloading: $filename"
+  notify-send -u low "Downloading: $filename"
   tmux new-session -d -s $randomVidId
-  tmux send-keys -t $randomVidId "cd $videoDir; /usr/bin/yt-dlp '$opts' '${link}'; [[ $? == 0 ]] && exit || echo bad" Enter; #rc=$(echo $?)
+  tmux send-keys -t $randomVidId "cd $videoDir; ${downloadCommand} '${link}' && { notify-send -u normal "Completed: $filename"; exit; } || { notify-send -u critical "failed: $filename - $randomVidId"; }" Enter;
 
-#  if [ $rc == 0 ];
-#  then
-##    tmux send-keys -t $randomVidId "exit" Enter
-#    ls
-#  else
-#    notify-send --urgency=critical "failed: $filename"
-#    echo "$filename -> $link" >> $failedURLs
-#    sort -uo $failedURLs $failedURLs
-#  fi
 }
 
 if [[ "$1" =~ "odysee.com" ]]; then
+  downloadCommand='/usr/bin/yt-dlp'
   download & disown
 elif [[ "$1" =~ "youtube" ]]; then
-  opts='-f bv*[height<2160]+bestaudio'
+  downloadCommand="/usr/bin/yt-dlp -f 'bv*[height<2160]+bestaudio'"
   download & disown
 fi

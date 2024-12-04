@@ -1,12 +1,27 @@
 #! /bin/bash
 
+searchDir=${1:-$PWD}
+
+function checkPath() {
+  if [[ "${searchDir:0:1}" == "/" ]];
+  then
+    dirPath=${searchDir}
+  elif [[ $PWD == $searchDir ]];
+  then
+    dirPath=${searchDir}
+  else
+    dirPath=$PWD/${searchDir}
+  fi
+}
+
 function converter() {
+  cd "${dirPath}"
   # Get the conversion formats
   read -p "Filetype FROM: " typeFrom
   read -p "Filetype TO: " typeTo
   # Check if an incorrect starting format was given, exit if true
-  [[ -z `ls | grep ".$typeFrom"` ]] && echo "No files matching type $typeFrom, exiting..." && getOut="true" && return
-  # Loop through all files in $PWD matching starting format, converting each
+  [[ -z `ls "${dirPath}" | grep ".$typeFrom"` ]] && echo "No files matching type $typeFrom, exiting..." && getOut="true" && return
+  # Loop through all files in $searchDir matching starting format, converting each
   for file in *.$typeFrom;
   do filename="${file%.$typeFrom}";
     echo -e "Running: ffmpeg -hide_banner -nostats -loglevel warning -y -i "$file" "$filename.$typeTo"";
@@ -20,8 +35,9 @@ function converter() {
 function removeOld() {
   # If incorrect starting format was given, exit immediately
   [[ "$getOut" == "true" ]] && return
+  cd "${dirPath}"
   # Show and confirm the current state of the directory prior to removal
-  echo -e "\n\nCurrent Directory:\n$(ls "$PWD" | column)\n"
+  echo -e "\n\nCurrent Directory:\n$(ls "${dirPath}" | column)\n"
   read -p "Do you want to delete the original ($typeFrom) files? (y/N) " confirmDelete
   # Unless 'y' specifically is given, exit to prevent accidental deletion
   [[ "$confirmDelete" != "y" ]] && echo "Incorrect Key or 'N' Selected. Not Deleting..." && return
@@ -33,10 +49,10 @@ function removeOld() {
 confirmed=false
 while ! $confirmed; do
   # Show and confirm the current state of the directory
-  echo -e "\nFiles to convert:\n$(ls "$PWD" | column)\n"
+  echo -e "\nFiles to convert:\n$(ls "$searchDir" | column)\n"
   read -p "Do these files look correct? (y/N) " confirm
   # If the directory is where you intend to be, proceed
-  [[ "$confirm" == "y" ]] && confirmed=true && converter && removeOld && break
+  [[ "$confirm" == "y" ]] && confirmed=true && checkPath && converter && removeOld && break
   # If the directory is otherwise incorrect, choose N and exit this script
   [[ "$confirm" == "N" ]] && break
   echo "Please select \"y\" or \"N\""

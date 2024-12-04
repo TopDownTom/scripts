@@ -1,0 +1,79 @@
+#! /bin/bash
+
+# Grab some color defs
+source $HOME/.shell_colors
+
+# We need some input to operate on it
+if [[ -z $1 ]]; then
+  printf "\n${PURPLE}You need to give me something to get something${NOCOL}\n";
+  exit 1
+fi
+
+# If the input isn't a file nor a dir, yell at the user
+if [[ ! -d $1 && ! -f $1 ]]; then
+  printf "${RED}What the fuck is this? -> ${YELLOW}$1\n${NOCOL}"
+  exit 1
+fi
+
+# If the file is a dir
+if [[ -d $1 ]];
+then
+  # Check if the given path is relative or absolute
+  if [[ "${1:0:1}" != "/" ]];
+  then
+    searchDir=$PWD/$1
+  else
+    searchDir=$1
+  fi
+fi
+
+# Make an array of the files from the input. May only be a single file
+# Don't fuck with partially downloaded files
+readarray -t files < <(find "$searchDir" -maxdepth 1 -type f ! -iname '*.part')
+
+# Define associative array
+declare -A specialChars
+
+# These are the weird characters found in youtube video links
+specialChars["："]=':'
+specialChars["？"]='?'
+specialChars["＂"]='"'
+specialChars["｜"]='|'
+
+function removeChars() {
+  # Loop through each element of the found files
+  for (( a=0; a<${#files[@]}; a++ ))
+  do
+    str=${files[$a]}
+    # For all the elements of each file
+    for i in "${str[@]}";
+    do
+      # Separate the elements into parts (characters)
+      for j in $(seq 1 "${#i}");
+      do
+        # Does this character match any of the specialChars?
+        for k in ${!specialChars[@]};
+        do
+          # If so, move the file without those chars
+          if [[ "$k" == "${i:j-1:1}" ]];
+          then
+            orig_str=$str
+            str=${str//$k/${specialChars[${k}]}}
+            new_str=$str
+            printf "\n${GREEN}Moving${NOCOL}\n  '${YELLOW}${orig_str}${NOCOL}'\n${GREEN}to:${NOCOL}\n  '${YELLOW}${new_str}${NOCOL}'\n"
+            mv -n "${orig_str}" "${new_str}"
+          fi
+        done
+      done
+    done
+  done
+}
+
+# Do the thing
+removeChars
+
+# If we didn't have to do anything, tell us
+if [[ "$orig_str" == "$new_str"  ]]; then
+  printf "\n${GREEN}Nothing to do...exiting.${NOCOL}\n"
+  exit 0
+fi
