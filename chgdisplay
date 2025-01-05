@@ -55,6 +55,7 @@ then
           xrandr --output $laptopScreen --$laptopScreenRelPosition HDMI-2
           xwallpaper --stretch $HOME/.pape.png
           chooseAudio
+          generatei3MonitorConfig
           break
           ;;
       esac
