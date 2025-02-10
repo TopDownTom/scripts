@@ -1,0 +1,65 @@
+#! /bin/bash
+
+# Exit codes:
+#   0 - Success
+#   1 - Failure to apply all requests to IDs
+#   2 - You failed to provide all of the required options
+#   3 - Bad json formatting in your request body
+#   4 - Login error
+
+# Define colors
+red='\e[31m'; blue='\e[94m'; green='\e[32m'
+purple='\e[35m'; nc='\e[0m';
+
+# Describe how to use this script. Called if you forget to define one of the required options
+function usage() {
+  printf "\nRun the script as follows:\n"
+  printf "$(basename $0) -r <recipient> -i <input file> -o <output file>"
+  printf "\n${green}Example${nc}: $(basename $0) --recipient user@email.com --input dir --output dir.tgz.gpg\n"
+  exit 2
+}
+
+# Take action and set some variables for the commandline options
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -i|--input)
+      INPUT_FILE="${2}"
+      shift
+      shift
+      ;;
+    -r|--recipient)
+      RECIPIENT="${2}"
+      shift
+      shift
+      ;;
+    -o|--output)
+      OUTPUT_FILE="${2}"
+      shift
+      shift
+      ;;
+    -h|--help)
+      usage
+      ;;
+    -*|--*)
+      echo "Unknown options: $1"
+      usage
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# Bail out if we don't get everything we need to have a successful run
+if [[ -z $INPUT_FILE || -z $RECIPIENT || -z $OUTPUT_FILE ]];
+then
+  printf "\n${blue}Not all vars were defined, or help was requested, try again...${nc}\n\n"
+  usage
+fi
+
+# Check if the input file is a file or dir
+if [[ "${INPUT_FILE}" == *"/"* ]]; then
+  SEARCH_DIR=$(echo ${INPUT_FILE##/} | rev | cut -d'/' -f2- | rev)
+  echo ${SEARCH_DIR%/}
+fi
