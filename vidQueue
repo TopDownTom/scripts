@@ -1,26 +1,161 @@
 #! /bin/bash
 
 # This script downloads yt videos to a dir and notifies the user on start and completion
+# It also logs to the user's home dir (assumed not to be run as root) in ~/.local/state/vidQueue/queue.log
+# Run this script like:
+# vidQueue https://hyperlink.com/whatever [filename]
+
+# set the start time of the script
+timeStart=$(date +%s)
+
+# set some variables
+# the directory you'll be downloading videos to
 videoDir=$HOME/videos/yt
-failedURLs=/tmp/failed_video_urls
-link=${1}
 
-download () {
-  filename=$(/usr/bin/yt-dlp "$link" --print filename --skip-download 2> /dev/null)
-  [[ "$filename" =~ "!" ]] && filename=${filename//!/\\!} # remove ! characters which cause script to fail
-  [[ "$filename" =~ "(" ]] && filename=${filename//\(/\\(} # remove ! characters which cause script to fail
-  [[ "$filename" =~ ")" ]] && filename=${filename//\)/\\)} # remove ! characters which cause script to fail
-  randomVidId=$RANDOM
-  notify-send -u low "Downloading: $filename"
-  tmux new-session -d -s $randomVidId
-  tmux send-keys -t $randomVidId "cd $videoDir; ${downloadCommand} '${link}' && { notify-send -u normal "Completed: $filename"; exit; } || { notify-send -u critical "failed: $filename - $randomVidId"; }" Enter;
+# the link to the video
+link="${1}"
 
+# the name you want to call the downloaded video. this variable is optional
+filename="${2}"
+
+
+# store the script PID
+vidQueue_pid=$$
+
+# these are problematic characters that can cause shell escapes
+declare -a escape_these=( '!' '(' ')' )
+
+# write to the logfile
+writeLog () {
+  echo "[ ${randomVidId} ]: ${1}" >> ${logfile}
+  # this can be used to also write out to stdout and the logfile
+#  echo "[ ${randomVidId} ]: ${1}" 2>&1 | tee -a ${logfile}
 }
 
-if [[ "$1" =~ "odysee.com" ]]; then
-  downloadCommand='/usr/bin/yt-dlp'
-  download & disown
-elif [[ "$1" =~ "youtube" ]]; then
-  downloadCommand="/usr/bin/yt-dlp -f 'bv*[height<2160]+bestaudio'"
-  download & disown
-fi
+createLogging () {
+  # define the log directories and files
+  logdir=$HOME/.local/state/vidQueue
+  logfilename=queue.log
+  logfile=${logdir}/${logfilename}
+
+  # check if the vidQueue dir doesn't exist, if so make it so we can log
+  if [[ ! -d $HOME/.local/state/vidQueue/ ]]; then
+    mkdir -p ${logdir}; mk_vidQueue_rc=$?
+    touch ${logdir}/${logfilename}; touch_vidQueue_rc=$?
+    # if the touch went wrong, possibly also the mkdir went wrong, tell us
+    if [[ ${touch_vidQueue_rc} != 0 ]]; then
+      logger "Something went wrong touching the vidQueue logfile. RC was: ${touch_vidQueue_rc}"
+      notify-send -u critical "Something went wrong touching the vidQueue logfile. RC was: ${touch_vidQueue_rc}"
+    else
+      writeLog "No logdir existed, created one..."
+    fi
+  fi
+}
+
+# if we don't pass a title for the video, get one from yt-dlp
+getFilename () {
+  filename=$(/usr/bin/yt-dlp "${link}" --print filename --skip-download 2> /dev/null)
+}
+
+# generate a random number to associate with the download session
+createVidId () {
+  randomVidId=$RANDOM
+  if [[ -f /tmp/${randomVidId}.lock ]]; then
+    # generate a new random ID if we happen to get the same one
+    writeLog "Lockfile /tmp/${randomVidId} already exists, creating another random vid id."
+    randomVidId=$RANDOM
+    writeLog "New lockfile id: ${randomVidId}"
+  fi
+}
+
+# construct the download command to use once we have everything we need
+constructDownloadCommand () {
+  filename="${1}" # this is $1 input when the function is called, not when the script is called
+  downloadCommand="/usr/bin/yt-dlp -o \"${filename}.%(ext)s\" -f 'bv*[height<2160]'"
+}
+
+download () {
+  # Get the video filename if not passed
+  if [[ -z "${filename}" ]]; then
+    writeLog "No filename given, obtaining one from yt-dlp"
+    getFilename; getname_rc=$?
+    if [[ ${getname_rc} != 0 ]]; then
+      writeLog "Something went wrong getting the filename"
+    fi
+  fi
+
+  # notify the user
+  notify-send -u low "[ ${randomVidId} ]: Downloading \"$filename\""
+
+# old thing that might not be needed anymore
+#  # escape characters that cause shell expansion
+#  for char in ${escape_these[@]}; do
+#    if [[ "${filename[@]}" =~ "${char}" ]]; then
+#      filename="${filename//${char}/\\${char}}"
+#    fi
+#  done
+
+  # create the lockfile
+  lockfile="/tmp/${randomVidId}.lock"
+  writeLog "Creating lockfile: ${lockfile}"
+  touch ${lockfile}; create_lockfile_rc=$?
+  if [[ $create_lockfile_rc != 0 ]]; then
+    writeLog "Something went wrong creating the lockfile for id ${randomVidId}. bailing on this attempt"
+  fi
+
+  # we have everything we should need. build the command to download
+  constructDownloadCommand "${filename}"
+
+  # write some things to the logfile about what we're about to do
+  writeLog "Filename: ${filename}"
+  writeLog "URL: '${link}'"
+  writeLog "PID: ${vidQueue_pid}"
+  writeLog "Running: tmux new-session -d -s $randomVidId"
+  writeLog "Running: tmux send-keys -t $randomVidId \"cd $videoDir; ${downloadCommand} '${link}' && \
+  { notify-send -u normal \"Completed: $filename\"; exit; } || \
+  { notify-send -u critical \"failed: $filename - $randomVidId\"; }\" Enter;"
+
+  # create the tmux session
+  tmux new-session -d -s $randomVidId; tx_create_new_session_rc=$?
+  tmux send-keys -t $randomVidId "cd $videoDir; ${downloadCommand} '${link}' &&\
+  { notify-send -u normal "Completed: \"${filename}\""; echo "Completed: \"${filename}\""; exit 0; } ||\
+  { notify-send -u critical "failed: \"${filename}\" - ${randomVidId}"; }" Enter; tx_send_keys_rc=$?
+
+  # let us know if creating the tmux session went wrong
+  if [[ ${tx_create_new_session_rc} != 0 ]]; then
+    writeLog "Couldn't create a tmux session ${randomVidId}"
+    writeLog "RC was: ${tx_create_new_session_rc}"
+    writeLog "Exiting..."
+    exit 1
+  fi
+
+  # let us know if sending the download command failed
+  if [[ ${tx_send_keys_rc} != 0 ]]; then
+    writeLog "Couldn't send the download command to detatched session ${randomVidId}. Not deleting the lockfile."
+  else
+    writeLog "Deleting lockfile: ${lockfile}"
+    rm ${lockfile}; rm_lockfile_rc=$?
+    if [[ $rm_lockfile_rc != 0 ]]; then
+      writeLog "Something went wrong removing the lockfile for id ${randomVidId}"
+    fi
+  fi
+  # capture end time
+  timeEnd=$(date +%s)
+  # log how long this took
+  runtime=$(echo "$timeEnd - $timeStart" | bc -lq)
+  writeLog "Runtime: ${runtime}s"
+}
+
+# Create the logfile before proceeding
+createLogging
+
+# Create the random unique video id
+createVidId
+
+# Tell us that we've gotten enough data to start downloading
+writeLog "New instance of vidQueue started. Session ${randomVidId}";
+
+# Start the download. Fork it to the background.
+download & disown
+
+exit 0
