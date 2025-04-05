@@ -71,7 +71,7 @@ createVidId () {
 # construct the download command to use once we have everything we need
 constructDownloadCommand () {
   filename="${1}" # this is $1 input when the function is called, not when the script is called
-  downloadCommand="/usr/bin/yt-dlp -o \"${filename}.%(ext)s\" -f 'bv*[height<2160]'"
+  downloadCommand="/usr/bin/yt-dlp -o \"${filename}.%(ext)s\" -f 'best'"
 }
 
 download () {
@@ -87,13 +87,12 @@ download () {
   # notify the user
   notify-send -u low "[ ${randomVidId} ]: Downloading \"$filename\""
 
-# old thing that might not be needed anymore
-#  # escape characters that cause shell expansion
-#  for char in ${escape_these[@]}; do
-#    if [[ "${filename[@]}" =~ "${char}" ]]; then
-#      filename="${filename//${char}/\\${char}}"
-#    fi
-#  done
+  # escape characters that cause shell expansion
+  for char in ${escape_these[@]}; do
+    if [[ "${filename[@]}" =~ "${char}" ]]; then
+      filename="${filename//${char}/\\${char}}"
+    fi
+  done
 
   # create the lockfile
   lockfile="/tmp/${randomVidId}.lock"
