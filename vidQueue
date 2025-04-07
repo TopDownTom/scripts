@@ -25,6 +25,9 @@ vidQueue_pid=$$
 # these are problematic characters that can cause shell escapes
 declare -a escape_these=( '!' '(' ')' )
 
+# these are common extensions we might want to remove from names later on
+declare -a extensions=('mp4' 'mp3' 'wmv' 'wav' 'webm' 'mkv')
+
 # write to the logfile
 writeLog () {
   echo "[ ${randomVidId} ]: ${1}" >> ${logfile}
@@ -55,6 +58,14 @@ createLogging () {
 # if we don't pass a title for the video, get one from yt-dlp
 getFilename () {
   filename=$(/usr/bin/yt-dlp "${link}" --print filename --skip-download 2> /dev/null)
+  # check if the filename has the extension at the end. if so, remove it
+  for ext in "${extensions[@]}";
+  do
+    if [[ "${filename}" =~ "${ext}" ]]; then
+      writeLog "Stripping the extension ( \"${ext}\" ) from the filename prior to appending one"
+      filename=$(echo "$filename" | sed 's/\(.*\)\..*/\1/')
+    fi
+  done
 }
 
 # generate a random number to associate with the download session
@@ -71,7 +82,26 @@ createVidId () {
 # construct the download command to use once we have everything we need
 constructDownloadCommand () {
   filename="${1}" # this is $1 input when the function is called, not when the script is called
-  downloadCommand="/usr/bin/yt-dlp -o \"${filename}.%(ext)s\" -f 'best'"
+  link="${2}" # this is $2 to the function
+  # my computer doesn't do well with 4k
+  format="-f bestvideo*[height<2160]+bestaudio"
+
+  writeLog "Trying to get format of: /usr/bin/yt-dlp --simulate \"${format}\" \"${link}\""
+#  checkFormat=$(set -o pipefail; { time /usr/bin/yt-dlp --quiet --simulate \"${format}\" \"${link}\" ; } 2>&1 | awk '/real/{print $2}'); checkFormat_rc=$?
+  checkFormat=$(/usr/bin/yt-dlp --quiet --simulate "${format}" "${link}" 2> /dev/null); checkFormat_rc=$?
+
+#  writeLog "Checking formats took: ${checkFormat}s"
+  writeLog "Checking formats RC: ${checkFormat_rc}"
+
+  # If we can't reduce the resolution to <2160, then just let yt-dlp get the best format itself
+  if [[ ${checkFormat_rc} != 0 ]]; then
+    writeLog "We couldn't restrict the resolution to <2160, so we're letting yt-dlp take over"
+    unset format
+    downloadCommand="/usr/bin/yt-dlp -o \"${filename}.%(ext)s\" --restrict-filenames"
+  else
+    downloadCommand="/usr/bin/yt-dlp -o \"${filename}.%(ext)s\" --restrict-filenames \"${format}\""
+  fi
+
 }
 
 download () {
@@ -103,14 +133,15 @@ download () {
   fi
 
   # we have everything we should need. build the command to download
-  constructDownloadCommand "${filename}"
+  constructDownloadCommand "${filename}" "${link}"
 
   # write some things to the logfile about what we're about to do
   writeLog "Filename: ${filename}"
-  writeLog "URL: '${link}'"
+  writeLog "URL: ${link}"
+  writeLog "Format: ${format}"
   writeLog "PID: ${vidQueue_pid}"
   writeLog "Running: tmux new-session -d -s $randomVidId"
-  writeLog "Running: tmux send-keys -t $randomVidId \"cd $videoDir; ${downloadCommand} '${link}' && \
+  writeLog "Running: tmux send-keys -t $randomVidId \"cd $videoDir; \"${downloadCommand}\" '${link}' && \
   { notify-send -u normal \"Completed: $filename\"; exit; } || \
   { notify-send -u critical \"failed: $filename - $randomVidId\"; }\" Enter;"
 
