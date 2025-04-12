@@ -1,0 +1,29 @@
+#! /bin/bash
+
+# set the newsboat database path
+dbPath="$HOME/.local/share/newsboat/cache.db"
+authorName="${1}"
+
+# source a color flie
+source $HOME/.shell_colors
+
+if [[ -z ${1} ]]; then
+  read -p "Please give me a channel name to look up: " authorName
+fi
+
+query="
+SELECT
+  item.id as 'Item ID',
+  item.author as 'Channel Name',
+  REPLACE(item.title,'|',' ') as 'item title',
+  item.url
+FROM rss_item item
+WHERE item.author LIKE '%${authorName}%'
+ORDER BY item.pubDate ASC;
+"
+mapfile -t getResults < <(/usr/bin/sqlite3 "${dbPath}" "${query}" | column -t -s'|' )
+
+printf "${GREEN}Here's what I found:\n${NOCOL}"
+for i in "${getResults[@]}"; do
+  printf "${i}\n"
+done
