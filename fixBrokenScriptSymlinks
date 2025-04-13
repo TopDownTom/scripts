@@ -40,7 +40,7 @@ function createSymlinks() {
 # if a script only exists in sbin, remove it
 function removeBrokenSymlinks() {
 [[ $verbose ]] && printf "\tRemoving orphaned script $sbinPath/$1\n"
-[[ ! $dryRun ]] && sudo rm $sbinPath/$1
+[[ ! $dryRun ]] && sudo rm "$sbinPath"/"$1"
 }
 
 # after looking at the diff, do some decision making on how to process the results
