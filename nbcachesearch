@@ -1,29 +1,70 @@
 #! /bin/bash
 
-# set the newsboat database path
-dbPath="$HOME/.local/share/newsboat/cache.db"
-authorName="${1}"
-
 # source a color flie
 source $HOME/.shell_colors
 
-if [[ -z ${1} ]]; then
-  read -p "Please give me a channel name to look up: " authorName
+# set the newsboat database path
+dbPath="$HOME/.local/share/newsboat/cache.db"
+#CHANNEL_NAME_FZF="${1}"
+
+VALID_ARGS=$(getopt -o c:dh --long channel:,download,'help' -- "$@")
+if [[ $? -ne 0 ]]; then
+    exit 1;
 fi
+
+eval set -- "$VALID_ARGS"
+while [ : ]; do
+  case "$1" in
+  -c | --channel)
+    CHANNEL_NAME_FZF="${2}"
+    shift 2
+    ;;
+  -d | --download)
+    DOWNLOAD=0
+    shift
+    ;;
+  -h | --help )
+    echo -e "\nUsage: $(basename $0) [-v | --verbose] [-c | --channel] [-h | --help] [ARGS...]"
+    shift 2
+    exit 1
+    ;;
+  ?)
+    echo -e "\nUsage: $(basename $0) [-v | --verbose] [-c | --channel] [-h | --help] [ARGS...]"
+    shift 2
+    exit 1
+    ;;
+  --)
+    shift;
+    break
+    ;;
+  esac
+done
+
+
+while [[ -z ${CHANNEL_NAME_FZF} ]] do
+  read -p "Please give me a channel name to look up: " CHANNEL_NAME_FZF
+done
 
 query="
 SELECT
   item.id as 'Item ID',
   item.author as 'Channel Name',
-  REPLACE(item.title,'|',' ') as 'item title',
-  item.url
+  item.title as 'Title',
+  strftime('%F', DATETIME(item.pubDate, 'unixepoch')) as 'Upload Date',
+  item.url as 'URL'
 FROM rss_item item
-WHERE item.author LIKE '%${authorName}%'
+WHERE item.author LIKE '%${CHANNEL_NAME_FZF}%'
 ORDER BY item.pubDate ASC;
 "
-mapfile -t getResults < <(/usr/bin/sqlite3 "${dbPath}" "${query}" | column -t -s'|' )
 
-printf "${GREEN}Here's what I found:\n${NOCOL}"
+mapfile -t getResults < <(/usr/bin/sqlite3 --table "${dbPath}" "${query}" 2>/dev/null)
+
+if [[ -z "${getResults}" ]]; then
+  printf "\n${RED}I didn't find any channels in the newsboat config with this search term: ${YELLOW}${CHANNEL_NAME_FZF}\n${NOCOL}"
+else
+  printf "\n${GREEN}Here's what I found for channels matching: ${YELLOW}${CHANNEL_NAME_FZF}\n${NOCOL}"
+fi
+
 for i in "${getResults[@]}"; do
   printf "${i}\n"
 done
