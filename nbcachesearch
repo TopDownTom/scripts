@@ -1,14 +1,50 @@
 #! /bin/bash
 
-# set the newsboat database path
-dbPath="$HOME/.local/share/newsboat/cache.db"
-authorName="${1}"
-
 # source a color flie
 source $HOME/.shell_colors
 
-if [[ -z ${1} ]]; then
-  read -p "Please give me a channel name to look up: " authorName
+# source the tdt logger
+source ${SCRIPT_DIR}/tdtLogger
+
+# set the newsboat database path
+dbPath="$HOME/.local/share/newsboat/cache.db"
+CHANNEL_NAME_FZF="${1}"
+
+function usage {
+echo "do this: nbcachesearch facts"
+exit 0
+}
+
+while getopts 'vbc:h' opt; do
+  case "$opt" in
+    v)
+      echo "Verbose requested"
+      VERBOSE=true
+      ;;
+
+    b)
+      echo "Processing option 'b'"
+      ;;
+
+    c)
+      CHANNEL_NAME_FZF="$OPTARG"
+      echo "Processing option 'c' with '${OPTARG}' argument"
+      ;;
+
+    ?|h)
+      echo "Usage: $(basename $0) [-a] [-b] [-c arg]"
+      exit 1
+      ;;
+  esac
+done
+shift "$(($OPTIND -1))"
+
+if [[ $VERBOSE ]]; then
+  echo "verbose given"
+fi
+
+if [[ -z ${CHANNEL_NAME_FZF} ]]; then
+  read -p "Please give me a channel name to look up: " CHANNEL_NAME_FZF
 fi
 
 query="
@@ -18,12 +54,17 @@ SELECT
   REPLACE(item.title,'|',' ') as 'item title',
   item.url
 FROM rss_item item
-WHERE item.author LIKE '%${authorName}%'
+WHERE item.author LIKE '%${CHANNEL_NAME_FZF}%'
 ORDER BY item.pubDate ASC;
 "
-mapfile -t getResults < <(/usr/bin/sqlite3 "${dbPath}" "${query}" | column -t -s'|' )
+mapfile -t getResults < <(/usr/bin/sqlite3 --table "${dbPath}" "${query}" 2>/dev/null)
 
-printf "${GREEN}Here's what I found:\n${NOCOL}"
+if [[ -z "${getResults}" ]]; then
+  printf "${RED}I didn't find any channels with this search term -> ${CHANNEL_NAME_FZF}\n${NOCOL}"
+else
+  printf "${GREEN}Here's what I found:\n${NOCOL}"
+fi
+
 for i in "${getResults[@]}"; do
   printf "${i}\n"
 done
