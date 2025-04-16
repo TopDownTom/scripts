@@ -10,38 +10,41 @@ source ${SCRIPT_DIR}/tdtLogger
 dbPath="$HOME/.local/share/newsboat/cache.db"
 CHANNEL_NAME_FZF="${1}"
 
-function usage {
-echo "do this: nbcachesearch facts"
-exit 0
-}
+VALID_ARGS=$(getopt -o vc:h --long verbose,channel:,help -- "$@")
+OPTERR=0
+if [[ $? -ne 0 ]]; then
+    exit 1;
+fi
 
-while getopts 'vbc:h' opt; do
-  case "$opt" in
-    v)
-      echo "Verbose requested"
-      VERBOSE=true
-      ;;
-
-    b)
-      echo "Processing option 'b'"
-      ;;
-
-    c)
-      CHANNEL_NAME_FZF="$OPTARG"
-      echo "Processing option 'c' with '${OPTARG}' argument"
-      ;;
-
-    ?|h)
-      echo "Usage: $(basename $0) [-a] [-b] [-c arg]"
-      exit 1
-      ;;
+eval set -- "$VALID_ARGS"
+while [ : ]; do
+  case "$1" in
+  -v | --verbose)
+    echo "Running with verbose output..."
+    shift
+    ;;
+  -c | --channel)
+    CHANNEL_NAME_FZF="${2}"
+    shift 2
+    ;;
+  -h | --help )
+    echo -e "\nUsage: $(basename $0) [-v | --verbose] [-c | --channel] [-h | --help] [ARGS...]"
+    shift 2
+    exit 1
+    ;;
+  ?)
+    echo -e "\nUsage: $(basename $0) [-v | --verbose] [-c | --channel] [-h | --help] [ARGS...]"
+    shift 2
+    exit 1
+    ;;
+  --)
+    echo -e "\nUsage: $(basename $0) [-v | --verbose] [-c | --channel] [-h | --help] [ARGS...]"
+    exit 1
+    shift;
+    break
+    ;;
   esac
 done
-shift "$(($OPTIND -1))"
-
-if [[ $VERBOSE ]]; then
-  echo "verbose given"
-fi
 
 if [[ -z ${CHANNEL_NAME_FZF} ]]; then
   read -p "Please give me a channel name to look up: " CHANNEL_NAME_FZF
@@ -60,7 +63,7 @@ ORDER BY item.pubDate ASC;
 mapfile -t getResults < <(/usr/bin/sqlite3 --table "${dbPath}" "${query}" 2>/dev/null)
 
 if [[ -z "${getResults}" ]]; then
-  printf "${RED}I didn't find any channels with this search term -> ${CHANNEL_NAME_FZF}\n${NOCOL}"
+  printf "${RED}I didn't find any channels with this search term: ${CHANNEL_NAME_FZF}\n${NOCOL}"
 else
   printf "${GREEN}Here's what I found:\n${NOCOL}"
 fi
