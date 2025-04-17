@@ -3,15 +3,11 @@
 # source a color flie
 source $HOME/.shell_colors
 
-# source the tdt logger
-source ${SCRIPT_DIR}/tdtLogger
-
 # set the newsboat database path
 dbPath="$HOME/.local/share/newsboat/cache.db"
-CHANNEL_NAME_FZF="${1}"
+#CHANNEL_NAME_FZF="${1}"
 
-VALID_ARGS=$(getopt -o vc:h --long verbose,channel:,help -- "$@")
-OPTERR=0
+VALID_ARGS=$(getopt -o c:dh --long channel:,download,'help' -- "$@")
 if [[ $? -ne 0 ]]; then
     exit 1;
 fi
@@ -19,13 +15,13 @@ fi
 eval set -- "$VALID_ARGS"
 while [ : ]; do
   case "$1" in
-  -v | --verbose)
-    echo "Running with verbose output..."
-    shift
-    ;;
   -c | --channel)
     CHANNEL_NAME_FZF="${2}"
     shift 2
+    ;;
+  -d | --download)
+    DOWNLOAD=0
+    shift
     ;;
   -h | --help )
     echo -e "\nUsage: $(basename $0) [-v | --verbose] [-c | --channel] [-h | --help] [ARGS...]"
@@ -38,34 +34,35 @@ while [ : ]; do
     exit 1
     ;;
   --)
-    echo -e "\nUsage: $(basename $0) [-v | --verbose] [-c | --channel] [-h | --help] [ARGS...]"
-    exit 1
     shift;
     break
     ;;
   esac
 done
 
-if [[ -z ${CHANNEL_NAME_FZF} ]]; then
+
+while [[ -z ${CHANNEL_NAME_FZF} ]] do
   read -p "Please give me a channel name to look up: " CHANNEL_NAME_FZF
-fi
+done
 
 query="
 SELECT
   item.id as 'Item ID',
   item.author as 'Channel Name',
-  REPLACE(item.title,'|',' ') as 'item title',
-  item.url
+  item.title as 'Title',
+  strftime('%F', DATETIME(item.pubDate, 'unixepoch')) as 'Upload Date',
+  item.url as 'URL'
 FROM rss_item item
 WHERE item.author LIKE '%${CHANNEL_NAME_FZF}%'
 ORDER BY item.pubDate ASC;
 "
+
 mapfile -t getResults < <(/usr/bin/sqlite3 --table "${dbPath}" "${query}" 2>/dev/null)
 
 if [[ -z "${getResults}" ]]; then
-  printf "${RED}I didn't find any channels with this search term: ${CHANNEL_NAME_FZF}\n${NOCOL}"
+  printf "\n${RED}I didn't find any channels in the newsboat config with this search term: ${YELLOW}${CHANNEL_NAME_FZF}\n${NOCOL}"
 else
-  printf "${GREEN}Here's what I found:\n${NOCOL}"
+  printf "\n${GREEN}Here's what I found for channels matching: ${YELLOW}${CHANNEL_NAME_FZF}\n${NOCOL}"
 fi
 
 for i in "${getResults[@]}"; do
