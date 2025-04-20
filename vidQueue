@@ -3,7 +3,7 @@
 # This script downloads yt videos to a dir and notifies the user on start and completion
 # It also logs to the user's home dir (assumed not to be run as root) in ~/.local/state/vidQueue/queue.log
 # Run this script like:
-# vidQueue https://hyperlink.com/whatever [filename]
+# vidQueue https://hyperlink.com/whatever [filename] ['title']
 
 # set the start time of the script
 timeStart=$(date +%s)
@@ -12,12 +12,14 @@ timeStart=$(date +%s)
 # the directory you'll be downloading videos to
 videoDir=$HOME/videos/yt
 
+# Process the incoming stdin
+read inbound_link inbound_filename
+
 # the link to the video
-link="${1}"
+link="${inbound_link}"
 
 # the name you want to call the downloaded video. this variable is optional
-filename="${2}"
-
+filename="${inbound_filename}"
 
 # store the script PID
 vidQueue_pid=$$
@@ -30,7 +32,10 @@ declare -a extensions=('mp4' 'mp3' 'wmv' 'wav' 'webm' 'mkv')
 
 # write to the logfile
 writeLog () {
-  echo "[ ${randomVidId} ]: ${1}" >> ${logfile}
+  logMessage=${1}
+  priority=${2:-info}
+  logger -p ${priority} "vidQueue [ ${randomVidId} ]: ${logMessage}"
+#  echo "[ ${randomVidId} ]: ${1}" >> ${logfile}
   # this can be used to also write out to stdout and the logfile
 #  echo "[ ${randomVidId} ]: ${1}" 2>&1 | tee -a ${logfile}
 }
@@ -66,6 +71,14 @@ getFilename () {
       filename=$(echo "$filename" | sed 's/\(.*\)\..*/\1/')
     fi
   done
+  writeLog "Sleeping 10 seconds. I'm not a robot, I promise."
+  sleep 10
+}
+
+# dont really understand this, but it works?
+# source: https://stackoverflow.com/questions/6250698/how-to-decode-url-encoded-string-in-shell
+decodeUrl() {
+  link="${1//%/\\x}"
 }
 
 # generate a random number to associate with the download session
@@ -83,25 +96,25 @@ createVidId () {
 constructDownloadCommand () {
   filename="${1}" # this is $1 input when the function is called, not when the script is called
   link="${2}" # this is $2 to the function
-  # my computer doesn't do well with 4k
+  # for those of us with older tech that doesn't handle 4K/120FPS so well
   format="-f bestvideo*[height<2160]+bestaudio"
 
   writeLog "Trying to get format of: /usr/bin/yt-dlp --simulate \"${format}\" \"${link}\""
-#  checkFormat=$(set -o pipefail; { time /usr/bin/yt-dlp --quiet --simulate \"${format}\" \"${link}\" ; } 2>&1 | awk '/real/{print $2}'); checkFormat_rc=$?
   checkFormat=$(/usr/bin/yt-dlp --quiet --simulate "${format}" "${link}" 2> /dev/null); checkFormat_rc=$?
-
-#  writeLog "Checking formats took: ${checkFormat}s"
-  writeLog "Checking formats RC: ${checkFormat_rc}"
 
   # If we can't reduce the resolution to <2160, then just let yt-dlp get the best format itself
   if [[ ${checkFormat_rc} != 0 ]]; then
     writeLog "We couldn't restrict the resolution to <2160, so we're letting yt-dlp take over"
     unset format
-    downloadCommand="/usr/bin/yt-dlp -o \"${filename}.%(ext)s\" --restrict-filenames"
+    downloadCommand="/usr/bin/yt-dlp -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames"
   else
-    downloadCommand="/usr/bin/yt-dlp -o \"${filename}.%(ext)s\" --restrict-filenames \"${format}\""
+    writeLog "Obtained requested lower-resolution format"
+    downloadCommand="/usr/bin/yt-dlp -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames \"${format}\""
   fi
 
+  # Arbitrary sleep to prevent too many subsequent calls. Attempt to stop bot detection
+  writeLog "Sleeping 30s. I'm not a robot, I just play one on TV."
+  sleep 30
 }
 
 download () {
@@ -120,17 +133,14 @@ download () {
   # escape characters that cause shell expansion
   for char in ${escape_these[@]}; do
     if [[ "${filename[@]}" =~ "${char}" ]]; then
+      writeLog "Detected ${char}, escaping it in the title..."
       filename="${filename//${char}/\\${char}}"
     fi
   done
 
-  # create the lockfile
-  lockfile="/tmp/${randomVidId}.lock"
-  writeLog "Creating lockfile: ${lockfile}"
-  touch ${lockfile}; create_lockfile_rc=$?
-  if [[ $create_lockfile_rc != 0 ]]; then
-    writeLog "Something went wrong creating the lockfile for id ${randomVidId}. bailing on this attempt"
-  fi
+  # decode the URL if there are any encoded variables, newsboat/odysee does this
+  writeLog "Decoding the URL to make systemd happy"
+  decodeUrl "${link}"
 
   # we have everything we should need. build the command to download
   constructDownloadCommand "${filename}" "${link}"
@@ -140,35 +150,58 @@ download () {
   writeLog "URL: ${link}"
   writeLog "Format: ${format}"
   writeLog "PID: ${vidQueue_pid}"
-  writeLog "Running: tmux new-session -d -s $randomVidId"
-  writeLog "Running: tmux send-keys -t $randomVidId \"cd $videoDir; \"${downloadCommand}\" '${link}' && \
-  { notify-send -u normal \"Completed: $filename\"; exit; } || \
-  { notify-send -u critical \"failed: $filename - $randomVidId\"; }\" Enter;"
 
-  # create the tmux session
-  tmux new-session -d -s $randomVidId; tx_create_new_session_rc=$?
-  tmux send-keys -t $randomVidId "cd $videoDir; ${downloadCommand} '${link}' &&\
-  { notify-send -u normal "Completed: \"${filename}\""; echo "Completed: \"${filename}\""; exit 0; } ||\
-  { notify-send -u critical "failed: \"${filename}\" - ${randomVidId}"; }" Enter; tx_send_keys_rc=$?
+## new systemd stuff
 
-  # let us know if creating the tmux session went wrong
-  if [[ ${tx_create_new_session_rc} != 0 ]]; then
-    writeLog "Couldn't create a tmux session ${randomVidId}"
-    writeLog "RC was: ${tx_create_new_session_rc}"
-    writeLog "Exiting..."
-    exit 1
-  fi
+  # Define variables
+  COMMAND="${downloadCommand} \"${link}\""
+  SERVICE_NAME="vidQueue_${randomVidId}"
+  SERVICE_PATH="$HOME/.config/systemd/user"
 
-  # let us know if sending the download command failed
-  if [[ ${tx_send_keys_rc} != 0 ]]; then
-    writeLog "Couldn't send the download command to detatched session ${randomVidId}. Not deleting the lockfile."
+  # Define the service file template as a variable
+  SERVICE_TEMPLATE="
+  [Unit]
+  Description=vidQueue downloading for: ${randomVidId}
+  After=network.target
+  StartLimitInterval=10m
+  StartLimitBurst=4
+
+  [Service]
+  Type=oneshot
+  ExecStart=${COMMAND}
+  SuccessExitStatus=0
+  ExecStop=/usr/bin/rm ${SERVICE_PATH}/${SERVICE_NAME}.service
+
+  Restart=on-failure
+  RestartSec=15
+  RestartSteps=3
+  RestartMaxDelaySec=45
+  RestartMode=direct
+  StandardOutput=journal
+  StandardError=journal
+
+  [Install]
+  WantedBy=multi-user.target"
+
+  writeLog "The systemd service file: ${SERVICE_TEMPLATE}"
+  # Substitute variables using envsubst and write the file to a temporary location
+  echo "$SERVICE_TEMPLATE" | envsubst > "${SERVICE_PATH}/${SERVICE_NAME}.service"
+
+  # Reload systemd, start, and enable the service
+  writeLog "Reloading the systemd user daemon"
+  systemctl --user daemon-reload
+  writeLog "Starting the service ${SERVICE_NAME}"
+  systemctl --user start $SERVICE_NAME 2>/dev/null; service_rc=$?
+
+  if [[ ${service_rc} == 0 ]]; then
+    # Clean up the temporary service file
+    writeLog "Download successful, systemd cleaned up the service file at: ${SERVICE_PATH}/${SERVICE_NAME}.service"
+    /usr/bin/notify-send -u normal "Finished downloading ${filename}!"
   else
-    writeLog "Deleting lockfile: ${lockfile}"
-    rm ${lockfile}; rm_lockfile_rc=$?
-    if [[ $rm_lockfile_rc != 0 ]]; then
-      writeLog "Something went wrong removing the lockfile for id ${randomVidId}"
-    fi
+    writeLog "The download failed, service file not removed. Please check the journal for more info" "error"
+    /usr/bin/notify-send -u critical "[ ${randomVidId} ] - failed!"
   fi
+
   # capture end time
   timeEnd=$(date +%s)
   # log how long this took
@@ -183,7 +216,7 @@ createLogging
 createVidId
 
 # Tell us that we've gotten enough data to start downloading
-writeLog "New instance of vidQueue started. Session ${randomVidId}";
+writeLog "New instance of vidQueue started. Session ${randomVidId}"
 
 # Start the download. Fork it to the background.
 download & disown
