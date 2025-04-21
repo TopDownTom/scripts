@@ -18,7 +18,6 @@ link="${1}"
 # the name you want to call the downloaded video. this variable is optional
 filename="${2}"
 
-
 # store the script PID
 vidQueue_pid=$$
 
@@ -87,11 +86,7 @@ constructDownloadCommand () {
   format="-f bestvideo*[height<2160]+bestaudio"
 
   writeLog "Trying to get format of: /usr/bin/yt-dlp --simulate \"${format}\" \"${link}\""
-#  checkFormat=$(set -o pipefail; { time /usr/bin/yt-dlp --quiet --simulate \"${format}\" \"${link}\" ; } 2>&1 | awk '/real/{print $2}'); checkFormat_rc=$?
   checkFormat=$(/usr/bin/yt-dlp --quiet --simulate "${format}" "${link}" 2> /dev/null); checkFormat_rc=$?
-
-#  writeLog "Checking formats took: ${checkFormat}s"
-  writeLog "Checking formats RC: ${checkFormat_rc}"
 
   # If we can't reduce the resolution to <2160, then just let yt-dlp get the best format itself
   if [[ ${checkFormat_rc} != 0 ]]; then
@@ -99,9 +94,13 @@ constructDownloadCommand () {
     unset format
     downloadCommand="/usr/bin/yt-dlp -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames"
   else
+    writeLog "Obtained requested lower-resolution format"
     downloadCommand="/usr/bin/yt-dlp -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames \"${format}\""
   fi
 
+  # Arbitrary sleep to prevent too many subsequent calls. Attempt to stop bot detection
+  writeLog "Sleeping 30s. I'm not a robot."
+  sleep 30
 }
 
 download () {
@@ -120,6 +119,7 @@ download () {
   # escape characters that cause shell expansion
   for char in ${escape_these[@]}; do
     if [[ "${filename[@]}" =~ "${char}" ]]; then
+      writeLog "Detected ${char}, escaping it in the title..."
       filename="${filename//${char}/\\${char}}"
     fi
   done
@@ -153,69 +153,41 @@ download () {
   [Unit]
   Description=vidQueue downloading for: ${randomVidId}
   After=network.target
-  StartLimitInterval=180
-  StartLimitBurst=2
+  StartLimitInterval=240
+  StartLimitBurst=4
 
   [Service]
   Type=oneshot
   ExecStart=${COMMAND}
   SuccessExitStatus=0
-  #ExecStop=/usr/bin/notify-send -u low [ ${randomVidId} ]: Completed \"$filename\"
-  #ExecStopPost=/usr/bin/notify-send -u critical 'Failed to download ${randomVidId}!'
+  ExecStop=/usr/bin/rm ${SERVICE_PATH}/${SERVICE_NAME}.service
+  OnFailed=/usr/bin/notify-send -u normal OnFailed normal
 
   Restart=on-failure
-  RestartSec=5
+  RestartSec=15
   RestartSteps=3
   RestartMaxDelaySec=45
   StandardOutput=journal
   StandardError=journal
-  WorkingDirectory=/home/${USER}
 
   [Install]
   WantedBy=multi-user.target"
 
-  writeLog "Here's the systemd file: ${SERVICE_TEMPLATE}"
-#  # Substitute variables using envsubst and write the file to a temporary location
+  writeLog "The systemd service file: ${SERVICE_TEMPLATE}"
+  # Substitute variables using envsubst and write the file to a temporary location
   echo "$SERVICE_TEMPLATE" | envsubst > "${SERVICE_PATH}/${SERVICE_NAME}.service"
-#
-#  # Reload systemd, start, and enable the service
-#  systemctl --user daemon-reload
-#  systemctl --user start $SERVICE_NAME
-#
-#  # Clean up the temporary service file
+
+  # Reload systemd, start, and enable the service
+  writeLog "Reloading the systemd user daemon"
+  systemctl --user daemon-reload
+  writeLog "Starting the service ${SERVICE_NAME}"
+  systemctl --user start $SERVICE_NAME 2>/dev/null
+
+  # Clean up the temporary service file
+  writeLog "Cleaning up temp service file at: ${SERVICE_PATH}/${SERVICE_NAME}.service"
 #  rm "${SERVICE_PATH}/${SERVICE_NAME}.service"
 
 
-## original tmux stuff below
-#  writeLog "Running: tmux new-session -d -s $randomVidId"
-#  writeLog "Running: tmux send-keys -t $randomVidId \"cd $videoDir; \"${downloadCommand}\" '${link}' && \
-#  { notify-send -u normal \"Completed: $filename\"; exit; } || \
-#  { notify-send -u critical \"failed: $filename - $randomVidId\"; }\" Enter;"
-#
-#  # create the tmux session
-#  tmux new-session -d -s $randomVidId; tx_create_new_session_rc=$?
-#  tmux send-keys -t $randomVidId "cd $videoDir; ${downloadCommand} '${link}' &&\
-#  { notify-send -u normal "Completed: \"${filename}\""; echo "Completed: \"${filename}\""; exit 0; } ||\
-#  { notify-send -u critical "failed: \"${filename}\" - ${randomVidId}"; }" Enter; tx_send_keys_rc=$?
-
-#  # let us know if creating the tmux session went wrong
-#  if [[ ${tx_create_new_session_rc} != 0 ]]; then
-#    writeLog "Couldn't create a tmux session ${randomVidId}"
-#    writeLog "RC was: ${tx_create_new_session_rc}"
-#    writeLog "Exiting..."
-#    exit 1
-#  fi
-
-#  # let us know if sending the download command failed
-#  if [[ ${tx_send_keys_rc} != 0 ]]; then
-#    writeLog "Couldn't send the download command to detatched session ${randomVidId}. Not deleting the lockfile."
-#  else
-#    writeLog "Deleting lockfile: ${lockfile}"
-#    rm ${lockfile}; rm_lockfile_rc=$?
-#    if [[ $rm_lockfile_rc != 0 ]]; then
-#      writeLog "Something went wrong removing the lockfile for id ${randomVidId}"
-#    fi
-#  fi
   # capture end time
   timeEnd=$(date +%s)
   # log how long this took
