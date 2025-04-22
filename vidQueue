@@ -29,7 +29,10 @@ declare -a extensions=('mp4' 'mp3' 'wmv' 'wav' 'webm' 'mkv')
 
 # write to the logfile
 writeLog () {
-  echo "[ ${randomVidId} ]: ${1}" >> ${logfile}
+  logMessage=${1}
+  priority=${2:-info}
+  logger -p ${priority} "vidQueue [ ${randomVidId} ]: ${logMessage}"
+#  echo "[ ${randomVidId} ]: ${1}" >> ${logfile}
   # this can be used to also write out to stdout and the logfile
 #  echo "[ ${randomVidId} ]: ${1}" 2>&1 | tee -a ${logfile}
 }
@@ -153,7 +156,7 @@ download () {
   [Unit]
   Description=vidQueue downloading for: ${randomVidId}
   After=network.target
-  StartLimitInterval=240
+  StartLimitInterval=10m
   StartLimitBurst=4
 
   [Service]
@@ -161,12 +164,12 @@ download () {
   ExecStart=${COMMAND}
   SuccessExitStatus=0
   ExecStop=/usr/bin/rm ${SERVICE_PATH}/${SERVICE_NAME}.service
-  OnFailed=/usr/bin/notify-send -u normal OnFailed normal
 
   Restart=on-failure
   RestartSec=15
   RestartSteps=3
   RestartMaxDelaySec=45
+  RestartMode=direct
   StandardOutput=journal
   StandardError=journal
 
@@ -181,12 +184,14 @@ download () {
   writeLog "Reloading the systemd user daemon"
   systemctl --user daemon-reload
   writeLog "Starting the service ${SERVICE_NAME}"
-  systemctl --user start $SERVICE_NAME 2>/dev/null
+  systemctl --user start $SERVICE_NAME 2>/dev/null; service_rc=$?
 
-  # Clean up the temporary service file
-  writeLog "Cleaning up temp service file at: ${SERVICE_PATH}/${SERVICE_NAME}.service"
-#  rm "${SERVICE_PATH}/${SERVICE_NAME}.service"
-
+  if [[ ${service_rc} == 0 ]]; then
+    # Clean up the temporary service file
+    writeLog "Download successful, systemd cleaned up the service file at: ${SERVICE_PATH}/${SERVICE_NAME}.service"
+  else
+    writeLog "The download failed, service file not removed. Please check the journal for more info" "error"
+  fi
 
   # capture end time
   timeEnd=$(date +%s)
@@ -202,7 +207,7 @@ createLogging
 createVidId
 
 # Tell us that we've gotten enough data to start downloading
-writeLog "New instance of vidQueue started. Session ${randomVidId}";
+writeLog "New instance of vidQueue started. Session ${randomVidId}"
 
 # Start the download. Fork it to the background.
 download & disown
