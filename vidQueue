@@ -3,7 +3,7 @@
 # This script downloads yt videos to a dir and notifies the user on start and completion
 # It also logs to the user's home dir (assumed not to be run as root) in ~/.local/state/vidQueue/queue.log
 # Run this script like:
-# vidQueue https://hyperlink.com/whatever [filename]
+# vidQueue https://hyperlink.com/whatever [filename] ['title']
 
 # set the start time of the script
 timeStart=$(date +%s)
@@ -189,8 +189,10 @@ download () {
   if [[ ${service_rc} == 0 ]]; then
     # Clean up the temporary service file
     writeLog "Download successful, systemd cleaned up the service file at: ${SERVICE_PATH}/${SERVICE_NAME}.service"
+    /usr/bin/notify-send -u normal "Finished downloading ${filename}!"
   else
     writeLog "The download failed, service file not removed. Please check the journal for more info" "error"
+    /usr/bin/notify-send -u critical "[ ${randomVidId} ] - failed!"
   fi
 
   # capture end time
