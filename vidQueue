@@ -85,7 +85,7 @@ createVidId () {
 constructDownloadCommand () {
   filename="${1}" # this is $1 input when the function is called, not when the script is called
   link="${2}" # this is $2 to the function
-  # my computer doesn't do well with 4k
+  # for those of us with older tech that doesn't handle 4K/120FPS so well
   format="-f bestvideo*[height<2160]+bestaudio"
 
   writeLog "Trying to get format of: /usr/bin/yt-dlp --simulate \"${format}\" \"${link}\""
@@ -102,7 +102,7 @@ constructDownloadCommand () {
   fi
 
   # Arbitrary sleep to prevent too many subsequent calls. Attempt to stop bot detection
-  writeLog "Sleeping 30s. I'm not a robot."
+  writeLog "Sleeping 30s. I'm not a robot, I just play one on TV."
   sleep 30
 }
 
@@ -126,14 +126,6 @@ download () {
       filename="${filename//${char}/\\${char}}"
     fi
   done
-
-#  # create the lockfile
-#  lockfile="/tmp/${randomVidId}.lock"
-#  writeLog "Creating lockfile: ${lockfile}"
-#  touch ${lockfile}; create_lockfile_rc=$?
-#  if [[ $create_lockfile_rc != 0 ]]; then
-#    writeLog "Something went wrong creating the lockfile for id ${randomVidId}. bailing on this attempt"
-#  fi
 
   # we have everything we should need. build the command to download
   constructDownloadCommand "${filename}" "${link}"
