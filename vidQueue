@@ -70,6 +70,12 @@ getFilename () {
   done
 }
 
+# dont really understand this, but it works?
+# source: https://stackoverflow.com/questions/6250698/how-to-decode-url-encoded-string-in-shell
+decodeUrl() {
+  link="${1//%/\\x}"
+}
+
 # generate a random number to associate with the download session
 createVidId () {
   randomVidId=$RANDOM
@@ -126,6 +132,10 @@ download () {
       filename="${filename//${char}/\\${char}}"
     fi
   done
+
+  # decode the URL if there are any encoded variables, newsboat/odysee does this
+  writeLog "Decoding the URL to make systemd happy"
+  decodeUrl "${link}"
 
   # we have everything we should need. build the command to download
   constructDownloadCommand "${filename}" "${link}"
