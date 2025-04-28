@@ -68,6 +68,8 @@ getFilename () {
       filename=$(echo "$filename" | sed 's/\(.*\)\..*/\1/')
     fi
   done
+  writeLog "Sleeping 10 seconds. I'm not a robot, I promise."
+  sleep 10
 }
 
 # dont really understand this, but it works?
