@@ -12,11 +12,14 @@ timeStart=$(date +%s)
 # the directory you'll be downloading videos to
 videoDir=$HOME/videos/yt
 
+# Process the incoming stdin
+read inbound_link inbound_filename
+
 # the link to the video
-link="${1}"
+link="${inbound_link}"
 
 # the name you want to call the downloaded video. this variable is optional
-filename="${2}"
+filename="${inbound_filename}"
 
 # store the script PID
 vidQueue_pid=$$
