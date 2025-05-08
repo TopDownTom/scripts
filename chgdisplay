@@ -21,7 +21,7 @@ then
       *)
         echo "using $whichScreen"
         discardedScreen=$(echo ${connectedDevices[@]/$whichScreen})
-        xrandr --output $whichScreen --mode 1920x1080
+        xrandr --output $whichScreen --mode 1920x1080 --primary
         [ ! -z $discardedScreen ] && xrandr --output $discardedScreen --off
         xwallpaper --stretch $HOME/.pape.png
         if [ $whichScreen == "$laptopScreen" ]
