@@ -53,7 +53,10 @@ SELECT
   strftime('%F', DATETIME(item.pubDate, 'unixepoch')) as 'Upload Date',
   item.url as 'URL'
 FROM rss_item item
-WHERE item.author LIKE '%${CHANNEL_NAME_FZF}%'
+WHERE (
+item.author LIKE '%${CHANNEL_NAME_FZF}%'
+OR item.feedurl LIKE '%${CHANNEL_NAME_FZF}%'
+)
 ORDER BY item.pubDate ASC;
 "
 
@@ -65,6 +68,25 @@ else
   printf "\n${GREEN}Here's what I found for channels matching: ${YELLOW}${CHANNEL_NAME_FZF}\n${NOCOL}"
 fi
 
+# dont really understand this, but it works?
+# source: https://stackoverflow.com/questions/6250698/how-to-decode-url-encoded-string-in-shell
+# bad unicode escaping? https://unix.stackexchange.com/questions/579984/trying-to-use-printf-to-decode-unicode-characters-passed-in-as-arguments
+decodeUrl() {
+  link="${1//%/\\x}"
+}
+
+pythonDecodeUrl() {
+python << END
+import urllib.parse
+
+url = "${1}"
+x = urllib.parse.unquote(url)
+print(x)
+END
+}
+
+results=()
 for i in "${getResults[@]}"; do
-  printf "${i}\n"
+  pythonDecodeUrl "$i"
+  results+="${i}"
 done
