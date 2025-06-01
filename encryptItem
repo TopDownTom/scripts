@@ -3,37 +3,68 @@
 # Exit codes:
 #   0 - Success
 #   1 - Failure to apply all requests to IDs
-#   2 - You failed to provide all of the required options
+#   2 - You failed to provide all of the requiRED options
 #   3 - Bad json formatting in your request body
 #   4 - Login error
 
 # Define colors
-red='\e[31m'; blue='\e[94m'; green='\e[32m'
-purple='\e[35m'; nc='\e[0m';
+source $HOME/.shell_colors
 
-# Describe how to use this script. Called if you forget to define one of the required options
+# Describe how to use this script. Called if you forget to define one of the requiRED options
 function usage() {
   printf "\nRun the script as follows:\n"
   printf "$(basename $0) -r <recipient> -i <input file> -o <output file>"
-  printf "\n${green}Example${nc}: $(basename $0) --recipient user@email.com --input dir --output dir.tgz.gpg\n"
+  printf "\n${GREEN}Example${NOCOL}: $(basename $0) --recipient user@email.com --input dir --output my-dir\n"
   exit 2
+}
+
+# receives; output, input
+function tarDir() {
+  input="${2}"
+  output="${1}"
+  # progress credit: https://superuser.com/questions/168749/is-there-a-way-to-see-any-tar-progress-per-file
+  tar -zcf - "${input}" | pv -s $(du -sb "${input}" | awk '{print $1}') | gzip > "${output}.tgz" || \
+    { printf "${RED}Something went wrong in the tar creation!\n${NOCOL}"; exit 1; }
+  tar_file=$(find ./ -name "${output}.tgz")
+  printf "Here's the tar file we created: ${GREEN}${tar_file}\n${NOCOL}"
+}
+
+function checkConfirm() {
+  do_continue=( 'Y' 'y' )
+  thing_to_check="${1}"
+  for option in ${do_continue[@]}; do
+    if [[ "${thing_to_check}" == "${option}" ]]; then
+      continue=1
+    fi
+  done
+}
+
+function encryptFile() {
+  file_to_encrypt="${1}"
+  if [[ -z "${file_to_encrypt}" || "${file_to_encrypt}" == "" ]]; then
+    printf "We got passed something we didn't expect, it's empty. Bailing.\n"
+    exit 1
+  fi
+  printf "Encrypting: ${file_to_encrypt}...\n"
+  pv < "${file_to_encrypt}" | gpg --yes --recipient "${recipient}" --encrypt - > "${output_file}.gpg"  && \
+    printf "Here's the encrypted file we created: ${GREEN}$(find ./ -wholename ${output_file}.gpg)\n${NOCOL}"
 }
 
 # Take action and set some variables for the commandline options
 while [[ $# -gt 0 ]]; do
   case $1 in
     -i|--input)
-      INPUT_FILE="${2}"
+      input_file="${2}"
       shift
       shift
       ;;
     -r|--recipient)
-      RECIPIENT="${2}"
+      recipient="${2}"
       shift
       shift
       ;;
     -o|--output)
-      OUTPUT_FILE="${2}"
+      output_file="${2}"
       shift
       shift
       ;;
@@ -52,14 +83,65 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Bail out if we don't get everything we need to have a successful run
-if [[ -z $INPUT_FILE || -z $RECIPIENT || -z $OUTPUT_FILE ]];
+if [[ -z "${input_file}" || -z "${recipient}" || -z "${output_file}" ]];
 then
-  printf "\n${blue}Not all vars were defined, or help was requested, try again...${nc}\n\n"
+  printf "\n${BLUE}Not all vars were defined, or help was requested, try again...${NOCOL}\n\n"
   usage
 fi
 
-# Check if the input file is a file or dir
-if [[ "${INPUT_FILE}" == *"/"* ]]; then
-  SEARCH_DIR=$(echo ${INPUT_FILE##/} | rev | cut -d'/' -f2- | rev)
-  echo ${SEARCH_DIR%/}
+# check if the requested recipient is in the gpg keystore
+if [[ $(gpg --list-public-keys | grep "${recipient}" 1>/dev/null; echo $?) -gt 0 ]]; then
+  printf "\n${RED}The given recipient isn't in your gpg keystore. Should they be?: -> ${YELLOW}${recipient}\n${NOCOL}"
+  printf "\nCheck the keys in your store via: ${GREEN}gpg --list-public-keys\n${NOCOL}"
+  exit 1
 fi
+
+# just a newline before we start printing things out
+echo ""
+
+## update the file database cache
+#printf "${BLUE}Updating the file database cache...\n${NOCOL}"
+#update_db=$(sudo updatedb) || \
+#  printf "${RED}Something went wrong updating the db cache...\n${NOCOL}"
+
+# look for the file
+locate_input_file=( $(find "${input_file}" 2>/dev/null) ) || \
+  { printf "${RED}Something went wrong locating the input file: ${input_file}. Bailing...\n${NOCOL}"; exit 1; }
+
+#if [[ ${#locate_input_file[@]} -gt 1 ]]; then
+#  printf "${RED}\nWe got multiple files back searching for the input file, please resolve this. Here's what we got:\n\n${NOCOL}"
+#  printf "${locate_input_file}\n"
+#  exit 1
+#fi
+
+# check if the output tar exists, or the final gpg file exists already
+printf "Checking if the given output files exist yet...\n"
+if [[ $(find ./ -name ${output_file}*.gpg) ]]; then
+  find ./ -name "${output_file}*.gpg"
+  read -p "The above files already exist and will be overwritten by this script. Overwrite them? (Y/n) " overwrite_existing_output
+  checkConfirm "${overwrite_existing_output}"
+  if [[ ${continue} -eq 1 ]]; then
+    printf "Overwriting the file, continuing...\n"
+  else
+    printf "${YELLOW}Please choose another output filename. Exiting...\n${NOCOL}"
+    exit 1
+  fi
+else
+  printf "No conflicts found. Continuing.\n"
+fi
+
+# get the file type
+input_file_type=$(stat -c %F "${input_file}") || \
+  printf "${RED}Failed to get the file type of ${locate_input_file}!\n${NOCOL}"
+
+if [[ ${input_file_type} == 'directory' ]]; then
+  printf "${YELLOW}You want to encrypt a directory. We need to tar it first. This could take a minute...${NOCOL}\n"
+  tarDir "${output_file}" "${locate_input_file}" || \
+    printf "${RED}Something went wrong tar'ing your directory, please investigate...\n${NOCOL}"
+  encrypt_this="${tar_file}"
+else
+  encrypt_this=$(find ./ -name "${input_file}")
+fi
+
+# encrypt the file
+encryptFile "${encrypt_this}"
