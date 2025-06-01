@@ -1,50 +1,151 @@
 #! /bin/bash
 
-# https://www.reddit.com/r/bash/comments/k7vz1o/comment/gexkxz4/
+# This script operates on the files contained below a top level directory
+# i.e. the tree would look like this:
+#
+# /path/to/dir
+#   artist1/
+#     song1.mp3
+#     song2.wav
+#   artist2/
+#     album1/
+#       song3.mp3
+#     song4.mp4
+#
+# and running the script would look like:
+# $(basename $0) /path/to/dir
 
-# NOTE: be really fucking careful running this. shit randomly fails sometimes
-# but i dont really need this anymore to figure out why
-
+# grab some colors. it doesn't matter if you have this file or not.
+# check my dotfiles for this file
 source $HOME/.shell_colors
 
-startingDir=$PWD
-while IFS= read -rd '' file; do
-  files+=( "$file" )
-  artist=${PWD##*/}
-  artist=${artist%%/*}
-  album=${PWD##*/}
-  title=${files[-1]##*/}
-  printf "${YELLOW} ---------------------------------${NOCOL}\n"
-  printf "${BLUE}artist: $artist${NOCOL}\n"
-  echo "album: $album"
-  echo "adding data to: $title"
-  echo "---------------------------------"
-done < <(find "$startingDir" -maxdepth 1 -type f -print0)
+# show a help/usage if your invocation is bad
+function usage {
+  printf "\nUse `basename $0` like the following:\n"
+  printf "  $(basename $0) dir/\n"
+  printf "  $(basename $0) /path/to/dir\n"
+  exit 1
+}
 
-while IFS= read -rd '' file1; do
-  dirArray+=( "${file1}" )
-  cd "${dirArray[-1]}"
-  artist=${PWD##*$startingDir/}
-  artist=${artist%%/*}
-  while IFS= read -rd '' file2; do
-    width=$(tput cols)
-    subfiles+=( "${file2}" )
-    album=${dirArray[-1]##*/}
-    title=${subfiles[-1]##*/}
-    printf ${YELLOW}%0${width}s|tr \  -${NOCOL}
-    printf "${PURPLE}${UNDERLINE}adding data to:${NOCOL} $title\n"
-    printf "${BLUE}${UNDERLINE}artist:${NOCOL} $artist\n"
-    printf "${BLUE}${UNDERLINE}album:${NOCOL} $album\n"
-    printf "${GREEN}...${NOCOL}"
-    ffmpeg -hide_banner -nostats -loglevel warning -y -i "$file1/$title" -c copy\
-     -metadata artist="$artist"\
-     -metadata album_artist="$artist"\
-     -metadata album="$album"\
-     -metadata title="$title"\
-     "$file1/meta-${title}"
-    mv "$file1/meta-${title}" "$file1/$title"
-    printf "${GREEN}done${NOCOL}\n"
-    printf ${YELLOW}%0${width}s|tr \  -${NOCOL}
-    echo; echo
-  done < <(find "$PWD" -maxdepth 1 -type f -print0)
-done < <(find "$startingDir" -type d -print0)
+# calculate how far we are in the process
+function getPercent {
+  # because bash doesn't support floating point arithmetic, we pipe to bc to calculate the percent
+  percent=$(echo "${counter}/${num_files}*100" | bc -l)
+  # a bit of a hack so that on first invocation the progress bar doesn't show up as (%) of files processed
+  if [[ ${percent%.*} -lt 1 ]]; then percent=0; fi
+  # this is a progress bar. it updates the last line in stdout, which is always this line
+  printf "\r (${GREEN}${percent%.*}%%${NOCOL}) of files processed... "
+}
+
+# this is the primary thing we're trying to run, its just a large ffmpeg oneline that adds the metadata
+function addMetaData {
+  ffmpeg -hide_banner -nostats -loglevel warning -y -i "${i}" -c copy\
+    -metadata artist="${artist_clean}"\
+    -metadata album_artist="${artist_clean}"\
+    -metadata album="${album_clean}"\
+    -metadata title="${track_clean}"\
+    "${i}-meta.${extension}"
+  # ffmpeg wont write a file in-place, so we create an intermediate file in the above invocation
+  # then we move it here back into its original file path
+  mv "${i}-meta.${extension}" "${i}"
+}
+
+# these are really here just to be able to print out the given items to ffmpeg if we wanted
+function verbosePrint {
+  printf "\ntrack: ${track_clean}\n"
+  printf "dirty_track: $dirty_track\n"
+  printf "album: ${album_clean}\n"
+  printf "artist: ${artist_clean}\n"
+  printf "extension: ${extension}\n"
+}
+
+# this is the primary function which loops through the files found by the `find` command
+# in here is the logic manipulating the paths to fit the assumed hierarchy described a the top of this script
+function operate {
+  for i in "${absolute_path[@]}"; do
+
+    # check if we're operating on a new Artist
+    prev_artist="${artist:-}"
+
+    # with the assumption we're operating on a tree like 'housing_dir/artist/album/track'
+    # the album will be the dir containing the files found and stored in absolute_path
+    album=$(dirname "$i")
+
+    # this logic handles loose files inside what would normally be considered the 'artist'
+    # not all songs have albums, so they're just loose in their artist's directory
+#    if [[ $(dirname "$album") == $(realpath "${MUSIC_DIR}") ]]; then
+    if [[ $(dirname "$album") == $(realpath "${MUSIC_DIR}") ]]; then
+      # prevent looking up one directory
+      artist=${album}
+    else
+      artist=$(dirname "$album")
+    fi
+
+    # if the user breaks the rules and passes an 'Album' as the top-level directory
+    # this prevents the script from escaping above it via `dirname` commands
+    # and we instead can make no assumptions about the directory hierarchy
+    if [[ ${album} == $(realpath "${MUSIC_DIR}") ]]; then
+      artist="Unknown"
+      album=$(realpath "${MUSIC_DIR}")
+    fi
+
+    # Define some cleaned up versions of the found files
+    # The filename
+    dirty_track="${i#$album/*}"
+    # strip the extension from the file
+    track_clean="${dirty_track%.*}"
+    # glean the album the track resides in
+    album_clean="${album##*/}"
+    # glean the artist, strip the preceding path
+    artist_clean="${artist##*/}"
+    # get the file extension
+    extension="${dirty_track#*.}"
+
+    if [[ "${artist}" != "${prev_artist}" ]]; then
+      printf "\nWorking on tracks for artist: ${artist_clean}\n"
+    fi
+
+#    verbosePrint
+    # add metadata to $i
+    addMetaData
+    # increase the counter for our progress bar
+    ((counter++))
+    # show the progress bar
+    getPercent
+  done
+  # show the progress
+  getPercent
+  # give us a newline, because the progress bar absorbs the newline of each invocation
+  # but on the last one this is the trailing EOL, which we dont want
+  echo
+}
+
+# check if we passed any parameters to the script, if not bail out
+if [[ -z $1 ]]; then
+  printf "${RED}No directory given, bailing...${NOCOL}"
+  usage
+  exit 2
+# check if the passed param is a dir, if not bail out
+else if [[ ! -d $1 ]]; then
+  printf "${RED}Parameter given isn't a directory, bailing...${NOCOL}"
+  usage
+  exit 3
+fi
+fi
+
+# collect the files below the top level directory
+printf "${BLUE}Collecting all of the files under `realpath "$1"`\n${NOCOL}"
+mapfile -t absolute_path < <(find "$1" -type f -exec realpath "{}" \;)
+
+# the given dir is the MUSIC_DIR, used in some logic in the operate function
+MUSIC_DIR="$1"
+# this calculates the size of the terminal window
+terminal_width=$(tput cols)
+# these two are for calculating progress: counter/num_files*100
+num_files=${#absolute_path[@]}
+counter=0
+
+# show us how many files we have to work with. just a sanity check
+printf "${YELLOW}Found ${num_files} files to operate on...${NOCOL}\n"
+# start the process of adding metadata to files
+operate

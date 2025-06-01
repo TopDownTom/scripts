@@ -1,0 +1,92 @@
+#! /bin/bash
+
+# source a color flie
+source $HOME/.shell_colors
+
+# set the newsboat database path
+dbPath="$HOME/.local/share/newsboat/cache.db"
+#CHANNEL_NAME_FZF="${1}"
+
+VALID_ARGS=$(getopt -o c:dh --long channel:,download,'help' -- "$@")
+if [[ $? -ne 0 ]]; then
+    exit 1;
+fi
+
+eval set -- "$VALID_ARGS"
+while [ : ]; do
+  case "$1" in
+  -c | --channel)
+    CHANNEL_NAME_FZF="${2}"
+    shift 2
+    ;;
+  -d | --download)
+    DOWNLOAD=0
+    shift
+    ;;
+  -h | --help )
+    echo -e "\nUsage: $(basename $0) [-v | --verbose] [-c | --channel] [-h | --help] [ARGS...]"
+    shift 2
+    exit 1
+    ;;
+  ?)
+    echo -e "\nUsage: $(basename $0) [-v | --verbose] [-c | --channel] [-h | --help] [ARGS...]"
+    shift 2
+    exit 1
+    ;;
+  --)
+    shift;
+    break
+    ;;
+  esac
+done
+
+
+while [[ -z ${CHANNEL_NAME_FZF} ]] do
+  read -p "Please give me a channel name to look up: " CHANNEL_NAME_FZF
+done
+
+query="
+SELECT
+  item.id as 'Item ID',
+  item.author as 'Channel Name',
+  item.title as 'Title',
+  strftime('%F', DATETIME(item.pubDate, 'unixepoch')) as 'Upload Date',
+  item.url as 'URL'
+FROM rss_item item
+WHERE (
+item.author LIKE '%${CHANNEL_NAME_FZF}%'
+OR item.feedurl LIKE '%${CHANNEL_NAME_FZF}%'
+)
+ORDER BY item.pubDate ASC;
+"
+
+mapfile -t getResults < <(/usr/bin/sqlite3 --table "${dbPath}" "${query}" 2>/dev/null)
+
+if [[ -z "${getResults}" ]]; then
+  printf "\n${RED}I didn't find any channels in the newsboat config with this search term: ${YELLOW}${CHANNEL_NAME_FZF}\n${NOCOL}"
+else
+  printf "\n${GREEN}Here's what I found for channels matching: ${YELLOW}${CHANNEL_NAME_FZF}\n${NOCOL}"
+fi
+
+# dont really understand this, but it works?
+# source: https://stackoverflow.com/questions/6250698/how-to-decode-url-encoded-string-in-shell
+# bad unicode escaping? https://unix.stackexchange.com/questions/579984/trying-to-use-printf-to-decode-unicode-characters-passed-in-as-arguments
+decodeUrl() {
+  link="${1//%/\\x}"
+}
+
+pythonDecodeUrl() {
+python << END
+import urllib.parse
+
+url = "${1}"
+x = urllib.parse.unquote(url)
+print(x)
+END
+}
+
+results=()
+for i in "${getResults[@]}"; do
+  pythonDecodeUrl "$i"
+  results+="${i}"
+done
