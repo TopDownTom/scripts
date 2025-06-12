@@ -22,6 +22,8 @@ function usage() {
 function tarDir() {
   input="${2}"
   output="${1}"
+  echo "here's the dir we're taring: $input"
+  echo "here's the desired output file: $output"
   # progress credit: https://superuser.com/questions/168749/is-there-a-way-to-see-any-tar-progress-per-file
   tar -zcf - "${input}" | pv -s $(du -sb "${input}" | awk '{print $1}') | gzip > "${output}.tgz" || \
     { printf "${RED}Something went wrong in the tar creation!\n${NOCOL}"; exit 1; }
@@ -105,7 +107,7 @@ echo ""
 #  printf "${RED}Something went wrong updating the db cache...\n${NOCOL}"
 
 # look for the file
-locate_input_file=( $(find "${input_file}" 2>/dev/null) ) || \
+locate_input_file=( $(find ./ "${input_file}" 2>/dev/null) ) || \
   { printf "${RED}Something went wrong locating the input file: ${input_file}. Bailing...\n${NOCOL}"; exit 1; }
 
 #if [[ ${#locate_input_file[@]} -gt 1 ]]; then
@@ -116,7 +118,7 @@ locate_input_file=( $(find "${input_file}" 2>/dev/null) ) || \
 
 # check if the output tar exists, or the final gpg file exists already
 printf "Checking if the given output files exist yet...\n"
-if [[ $(find ./ -name ${output_file}*.gpg) ]]; then
+if [[ $(find ./ -name "${output_file}*.gpg") ]]; then
   find ./ -name "${output_file}*.gpg"
   read -p "The above files already exist and will be overwritten by this script. Overwrite them? (Y/n) " overwrite_existing_output
   checkConfirm "${overwrite_existing_output}"
