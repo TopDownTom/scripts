@@ -4,16 +4,30 @@
 # If there is no battery (i.e. desktop) nothing is output
 # This script assumes at least one battery in your laptop will be BAT0
 
-if [ -d "/sys/class/power_supply/BAT0" ]; then
-  combinedLevels=$(echo "$(cat /sys/class/power_supply/BAT*/capacity | sed 's/$/+/' | tr -d '\n' | sed 's/.$//')" | sed 's/^/(/;s/$/)/' | xargs -i echo "{} / 200 * 100" | bc -ql | xargs printf "%.0f")
-  echo "$combinedLevels%" && echo "blank"
+# set the directory where batteries are defined
+batDir=$(find /sys/class -type l -name 'BAT0' -exec dirname {} \;)
+
+# check if this is a battery-operated device
+if [ -d "${batDir}" ]; then
+
+  # find out how many batteries there are
+  numBatteries=$(find ${batDir} -name 'BAT*' 2>/dev/null | wc -l)
+
+  # do some maths to get the percentage
+  combinedLevels=$(echo "$(cat ${batDir}/BAT*/capacity | sed 's/$/+/' | tr -d '\n' | sed 's/.$//')" | sed 's/^/(/;s/$/)/' | xargs -i echo "{} / ${numBatteries}00 * 100" | bc -ql | xargs printf "%.0f")
+  # report the percentage
+  echo "$combinedLevels%" && echo "blank for i3block"
+
   # Check if discharging
-  acpi -b | grep Discharging
+  acpi -b | grep Discharging && dischargeState=1
+
   # Matches to above show 0, no matching results give 1
-  dischargeState=$(echo $?)
-  [[ $dischargeState -lt 1 ]] && echo "#000000" || echo "#00ced1"
+  [[ $dischargeState -eq 1 ]] && echo "#000000" || echo "#00ced1"
+
   # Alert if the total of all battery capacities is less than the set lower limit
-  [[ $dischargeState -lt 1 ]] && [[ $(echo "$combinedLevels < 10" | bc) -eq 1 ]] && notify-send -u critical "Batteries below 10%! At $combinedLevels!"
+  if [[ $dischargeState -eq 1 ]] && [[ $(echo "$combinedLevels < 50" | bc) -eq 1 ]]; then
+      notify-send -u critical "Batteries below 10%! At $combinedLevels!"
+  fi
 else
   echo
 fi
