@@ -25,7 +25,7 @@ if [ -d "${batDir}" ]; then
   [[ $dischargeState -eq 1 ]] && echo "#000000" || echo "#00ced1"
 
   # Alert if the total of all battery capacities is less than the set lower limit
-  if [[ $dischargeState -eq 1 ]] && [[ $(echo "$combinedLevels < 50" | bc) -eq 1 ]]; then
+  if [[ $dischargeState -eq 1 ]] && [[ $(echo "$combinedLevels < 10" | bc) -eq 1 ]]; then
       notify-send -u critical "Batteries below 10%! At $combinedLevels!"
   fi
 else
