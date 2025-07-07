@@ -30,6 +30,8 @@ apiFrom=$(awk "/$ENV-API/{print \$5}" $postNotes | head -n1 | tr -d '\",')
 apiTo=$(awk "/$ENV-API/{print \$5}" $postNotes | tail -n1 | tr -d '\",')
 appsvrFrom=$(awk "/$ENV-APPSVR/{print \$5}" $postNotes | head -n1 | tr -d '\",')
 appsvrTo=$(awk "/$ENV-APPSVR/{print \$5}" $postNotes | tail -n1 | tr -d '\",')
+asrFrom=$(awk "/$ENV-ASR/{print \$5}" $postNotes | head -n1 | tr -d '\",')
+asrTo=$(awk "/$ENV-ASR/{print \$5}" $postNotes | tail -n1 | tr -d '\",')
 ngFrom=$(awk "/$ENV-NG/{print \$5}" $postNotes | head -n1 | tr -d '\",')
 ngTo=$(awk "/$ENV-NG/{print \$5}" $postNotes | tail -n1 | tr -d '\",')
 gdfCoreFrom=$(grep $ENV-GDF-CORE $postNotes | cut -d' ' -f10- | head -n1 | tr -d '\",')
@@ -47,6 +49,8 @@ echo "$(sed "s/\$ENV/$ENV/g; \
 	s/\$apiTo/$apiTo/g; \
 	s/\$appsvrFrom/$appsvrFrom/g; \
 	s/\$appsvrTo/$appsvrTo/g; \
+  s/\$asrFrom/$asrFrom/g; \
+  s/\$asrTo/$asrTo/g; \
 	s/\$ngFrom/$ngFrom/g; \
 	s/\$ngTo/$ngTo/g; \
 	s/\$gdfCoreFrom/$gdfCoreFrom/g; \
