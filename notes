@@ -4,17 +4,22 @@ notes_dir=$HOME/shared/release
 ticket_dir=$1
 
 function check_notes() {
-  notes_file=$(find ${notes_dir}/${ticket_dir} -type f \( -name 'notes' -o -name 'notes.txt' \))
+  notes_ticket_dir=$(find "${notes_dir}" -maxdepth 2 -type d -name "${ticket_dir}")
+  if [[ ${notes_ticket_dir} ]]; then
+    notes_file=$(find "${notes_ticket_dir}" -type f \( -name 'notes' -o -name 'notes.txt' \))
+  fi
 }
 
 function create_notes() {
   echo "Creating a notes file.."
-  mkdir ${notes_dir}/${ticket_dir}/ 2> /dev/null
-  touch ${notes_dir}/${ticket_dir}/notes
+  echo "${notes_dir}/${ticket_dir}/notes.txt"
+  mkdir -m0755 ${notes_dir}/${ticket_dir}/
+  touch ${notes_dir}/${ticket_dir}/notes.txt
   check_notes
 }
 
-if [[ -d ${notes_dir}/${ticket_dir} ]];
+check_notes
+if [[ -d ${notes_ticket_dir} ]];
 then
   echo "Notes dir already exists, looking for the notes file..."
   check_notes
@@ -33,8 +38,9 @@ else
 
   if [ -z ${notes_file} ];
   then
-    echo -e "\e[32mFailed to create a notes file\[0m"
+    echo -e "\e[31mFailed to create a notes file\e[0m"
   else
+    echo "opening notes file"
     vi ${notes_file}
   fi
 
