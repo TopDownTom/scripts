@@ -1,0 +1,134 @@
+#! /bin/bash
+
+# some defaults
+# the mapfile -t option [t]rims newlines from array elements
+mapfile -t activeDisplays < <(xrandr --listactivemonitors | awk '{print $4}' | grep -v '^$')
+# define the primary monitor for use as a default in the config
+primaryDisplay=$(xrandr | awk '/ primary /{print $1}')
+# the i3 workspace config file
+workspaceConfigFile=$HOME/.config/i3/monitor_workspace.conf
+# default some maximum number of workspaces.
+workspaceMax=9
+
+# If we have colors, grab them
+if [[ -f $HOME/.shell_colors ]]; then
+  source $HOME/.shell_colors
+fi
+
+# Help usage
+function usage() {
+printf "\nUsage: generatei3MonitorConfig [OPTION]...\n"
+printf "\nThis script writes an i3 config file which assigns workspaces to specific monitors.\n"
+printf "\nWorkspaces should be given as comma-separated lists.\n"
+printf "\nIf you want a monitor to inherit the remaining workspaces, give your input as N+\n"
+printf "\n\
+-n, --dry-run\tdo nothing, just show the config you would get\n\
+-v, --verbose\twrite the config to the screen\n\
+-h, --help\tshow this help message usage\n"
+printf "\nExample:\n
+$ generatei3MonitorConfig
+Give a comma-separated list of workspaces you want on eDP-1: 0,1
+Give a comma-separated list of workspaces you want on DP-1-1: 2,3
+Give a comma-separated list of workspaces you want on DP-1-3: 4+
+\n"
+printf "\nExit codes:\n
+
+0\tall good, nice one
+1\tthis help message exits 1
+>1\tsomething terrible happened\n"
+exit 1
+}
+
+# Handle some options, and allow them to be given in any order
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -n|--dry-run)
+      DRY_RUN=true
+      printf "${GREEN}Dry run option given, no config change will be made...\n${NOCOL}"
+      shift
+      shift
+      ;;
+    -v|--verbose)
+      VERBOSE=true
+      shift
+      shift
+      ;;
+    -h|--help)
+      usage
+      ;;
+    -*|--*)
+      echo "Unknown options: $1"
+      usage
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+function singleWorkspaceConfig() {
+  printf "${GREEN}Only one active monitor. Setting the default config for ${activeDisplays}${NOCOL}\n"
+  for i in $(seq 0 ${workspaceMax}); do
+    configToWrite+=("workspace ${i} output ${activeDisplays} ${primaryDisplay}")
+  done
+}
+
+function provideWorkspaceNumbers() {
+  # Move this script to the monitor we're going to assign workspaces to
+  i3-msg -t command move container to output ${i} 1>/dev/null
+  # Move focus to the monitor we just switched to
+  i3-msg -t command focus output ${i} 1>/dev/null
+  while [ -z $goodList ]
+  do
+    read -p "$i: " wsList
+    if [[ $wsList == ,* || $wsList == *, ]]; then
+      printf "${RED}Make sure there are no leading or trailing commas. Try again.${NOCOL}\n"
+    else
+      goodList=1
+    fi
+    if [[ $wsList == *+ ]]; then
+      wsList=$(seq ${wsList%+} ${workspaceMax})
+    fi
+  done
+  mapfile workspaces < <(awk -F',' '{ for( a=1; a<=NF; a++ ) print $a }' <<<"${wsList}")
+  unset goodList
+}
+
+function createWorkspaceConfig() {
+  for j in ${workspaces[@]}; do
+    configToWrite+=("workspace ${j} output ${i} ${primaryDisplay}")
+  done
+}
+
+# Run the functions above
+printf "\nGive a comma-separated list of workspaces for the active display:\n"
+for i in ${activeDisplays[@]}; do
+  if [[ ${#activeDisplays[@]} -eq 1 ]]; then
+    singleWorkspaceConfig
+  else
+    provideWorkspaceNumbers
+    createWorkspaceConfig
+  fi
+done
+
+# Write the config parameters to the config file all at once
+if [[ ${DRY_RUN} ]]; then
+  printf "\n${BLUE}This is what would have been configured, at ${workspaceConfigFile}:${NOCOL}\n\n"
+  for i in "${configToWrite[@]}"; do
+    printf '%s\n' "${i}"
+  done
+else
+  for i in "${configToWrite[@]}"; do
+    printf '%s\n' "${i}"
+  done > ${workspaceConfigFile}
+fi
+
+# Show the contents of the config we just wrote, if verbose flag given
+if [[ ${VERBOSE} ]]; then
+  printf "\n${BLUE}The generated config, at ${workspaceConfigFile}:${NOCOL}\n\n"
+  cat ${workspaceConfigFile}
+fi
+
+# If we've made it this far, exit 0 explicitly
+exit 0
