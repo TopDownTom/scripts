@@ -1,0 +1,27 @@
+#! /bin/bash
+
+email=$(head -n1 $HOME/.c2_jira_api_creds)
+scripting_token=$(tail -n1 $HOME/.c2_jira_api_creds)
+
+numTickets=$(curl -s \
+  --request GET \
+  -u ${email}:${scripting_token} \
+  --header "Content-Type: application/json" \
+  "https://siteportal.atlassian.net/rest/api/2/search?jql=filter=10435" | jq .total)
+
+if [[ ${numTickets} -gt 0 ]];
+then
+  echo "${numTickets} queued tickets" && echo
+  [[ ${numTickets} -gt 0 ]] && echo '#5af78e' || echo '#b3b3b3'
+else
+  echo ""
+fi
+
+
+#Tickets=$(curl -s \
+#  --request GET \
+#  -u ${email}:${scripting_token} \
+#  --header "Content-Type: application/json" \
+#  "https://siteportal.atlassian.net/rest/api/2/search?jql=filter=10446" | jq .issues[0])
+#
+#echo $Tickets
