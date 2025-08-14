@@ -2,62 +2,120 @@
 
 # This script utilizes xrandr to select the desired video output configuration and switches audio output accordingly
 
+
+trap 'previous_command=$this_command; this_command=$BASH_COMMAND' DEBUG
+
+[[ -f $HOME/.shell_colors ]] && source $HOME/.shell_colors
+
+function print_var() {
+COLOR="${1}"
+VAR="${2}"
+
+printf "${COLOR}${VAR}${NOCOL}\n"
+}
+
+#function cmd_error() {
+#set -e
+#trap 'printf "${RED}exit $? due to $previous_command${NOCOL}\n"' EXIT
+#}
+
+exit_trap () {
+  local lc="$BASH_COMMAND" rc=$?
+  printf "${RED}Command ${YELLOW}$lc${RED} exited with code ${YELLOW}$rc${NOCOL}\n"
+}
+
+trap exit_trap EXIT
+set -e
+
+
+function success() {
+COLOR="${GREEN:-}"
+MSG="${1}"
+printf "${COLOR}${MSG}${NOCOL}\n"
+}
+
+
 [ -z $1 ] && read -p "Single or Multi display? " singleOrMultiMonitor || singleOrMultiMonitor=$1
 
-connectedDevices=($( xrandr --query | awk '/ connected /{print $1}' ))
-laptopScreen=$(xrandr --query | awk '/ primary /{print $1}')
-externalScreen=$(xrandr --query | grep -v " primary " | awk '/ connected /{print $1}')
+xrandr_query_file="/tmp/xrandr_query_$(echo ${RANDOM})"
+#printf "${BLUE}query file:${NOCOL} $xrandr_query_file\n"
+
+# if there is no query file, create one and make it sensible perms
+if [[ ! -f ${xrandr_query_file} ]]; then
+  touch ${xrandr_query_file}
+  chmod 600 ${xrandr_query_file}/sdklfj
+fi
+
+# write the xrandr output to a file for parsing
+xrandr_query=$(xrandr --query > ${xrandr_query_file})
+# get which devices have status 'connected'
+connectedDevices=($( awk '/ connected /{print $1}' ${xrandr_query_file} ))
+# get the primary screen
+primaryScreen=$(awk '/ primary /{print $1}' ${xrandr_query_file} )
+
+# determine all non-primary but connected screens
+for screen in "${connectedDevices[@]}"; do
+  for primary in "${!connectedDevices[@]}"; do
+    if [[ ${connectedDevices[i]} = $primaryScreen ]]; then
+      unset 'connectedDevices[i]'
+    fi
+  done
+done
+
+printf "${BLUE}laptop:${NOCOL} ${primaryScreen}\n"
 
 if [ $singleOrMultiMonitor == "s" ]
 then
   echo "Which screen would you like to use?"
-  select whichScreen in "${connectedDevices[@]}" Exit;
-  do
-    case $whichScreen in
-      Exit)
-        printf '\n...Exiting, doing nothing...\n\n'
-        break
-        ;;
-      *)
-        echo "using $whichScreen"
-        discardedScreen=$(echo ${connectedDevices[@]/$whichScreen})
-        xrandr --output $whichScreen --mode 1920x1080 --primary
-        [ ! -z $discardedScreen ] && xrandr --output $discardedScreen --off
-        xwallpaper --stretch $HOME/.pape.png
-        if [ $whichScreen == "$laptopScreen" ]
-        then
-          pacmd set-card-profile 0 output:analog-stereo
-        else
-          pacmd set-card-profile 0 output:hdmi-stereo+input:analog-stereo
-        fi
-        notify-send -u normal -t 2000 "Moving display to $whichScreen"
-        break
-        ;;
-    esac
-  done
+#  select whichScreen in "${connectedDevices[@]}" Exit;
+#  do
+#    case $whichScreen in
+#      Exit)
+#        printf '\n...Exiting, doing nothing...\n\n'
+#        break
+#        ;;
+#      *)
+#        echo "using $whichScreen"
+#        discardedScreen=$(echo ${connectedDevices[@]/$whichScreen})
+#        xrandr --output $whichScreen --mode 1920x1080 --primary
+#        [ ! -z $discardedScreen ] && xrandr --output $discardedScreen --off
+#        xwallpaper --stretch $HOME/.pape.png
+#        if [ $whichScreen == "$primaryScreen" ]
+#        then
+#          pacmd set-card-profile 0 output:analog-stereo
+#        else
+#          pacmd set-card-profile 0 output:hdmi-stereo+input:analog-stereo
+#        fi
+#        notify-send -u normal -t 2000 "Moving display to $whichScreen"
+#        break
+#        ;;
+#    esac
+#  done
 
 elif [ $singleOrMultiMonitor == "m" ]
 then
   echo "Where do you want the laptop screen relative to the external screen?"
-  possibleRelPositions=( left-of right-of above below same-as )
-  select laptopScreenRelPosition in "${possibleRelPositions[@]}" Exit;
-    do
-      case $laptopScreenRelPosition in
-        Exit)
-          printf '\n...Exiting, no changes made... \n\n'
-          break
-          ;;
-        *)
-          echo "Setting laptop screen $laptopScreenRelPosition external monitor"
-          notify-send -u normal "Moving $laptopScreen $laptopScreenRelPosition external monitor"
-          xrandr --output HDMI-2 --mode 1920x1080
-          xrandr --output $laptopScreen --auto
-          xrandr --output $laptopScreen --$laptopScreenRelPosition HDMI-2
-          xwallpaper --stretch $HOME/.pape.png
-          chooseAudio
-          generatei3MonitorConfig
-          break
-          ;;
-      esac
-    done
+#  possibleRelPositions=( left-of right-of above below same-as )
+#  select primaryScreenRelPosition in "${possibleRelPositions[@]}" Exit;
+#    do
+#      case $primaryScreenRelPosition in
+#        Exit)
+#          printf '\n...Exiting, no changes made... \n\n'
+#          break
+#          ;;
+#        *)
+#          echo "Setting laptop screen $primaryScreenRelPosition external monitor"
+#          notify-send -u normal "Moving $primaryScreen $primaryScreenRelPosition external monitor"
+#          xrandr --output HDMI-2 --mode 1920x1080
+#          xrandr --output $primaryScreen --auto
+#          xrandr --output $primaryScreen --$primaryScreenRelPosition HDMI-2
+#          xwallpaper --stretch $HOME/.pape.png
+#          chooseAudio
+#          generatei3MonitorConfig
+#          break
+#          ;;
+#      esac
+#    done
 fi
+
+rm ${xrandr_query_file}
