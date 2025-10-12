@@ -25,7 +25,7 @@ filename="${inbound_filename}"
 vidQueue_pid=$$
 
 # these are problematic characters that can cause shell escapes
-declare -a escape_these=( '!' '(' ')' )
+declare -a escape_these=( '!' '(' ')' '/' )
 
 # these are common extensions we might want to remove from names later on
 declare -a extensions=('mp4' 'mp3' 'wmv' 'wav' 'webm' 'mkv')
