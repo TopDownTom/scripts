@@ -1,0 +1,182 @@
+#! /bin/bash
+
+# get some colors
+if [[ -f $HOME/.shell_colors ]]; then
+  source $HOME/.shell_colors
+fi
+
+if [[ $(testOnline; echo $?) -gt 0 ]]; then
+  printf "${RED}We aren't online, exiting...${NOCOL}\n"
+  exit 2
+fi
+
+function usage() {
+  echo "Run the script as follows:"
+  echo "$(basename $0) [-h] [-vvv] [-c country_code] [-l load] [-s us_state_abbrev]"
+  exit 2
+}
+
+verbosity=0
+
+while getopts "c:l:s:hv" opt; do
+  case ${opt} in
+    h) usage ;;
+    c) country="${OPTARG}" ;;
+    l) load="${OPTARG}" ;;
+    s) state="${OPTARG}" ;;
+    v) ((verbosity++)) ;;
+  esac
+done
+
+# some defaults
+country=${country:-US} # default to US servers
+load=${load:-40} # below 40% load
+if [[ ! -z ${state} ]]; then
+  server_state=" and (.value.Name | contains(\"${state}\"))"
+else
+  server_state=''
+fi
+
+# variables used throughout
+proton_path="$HOME/.cache/Proton"
+serverlist="${proton_path}/VPN/serverlist.json"
+proton_app_command=protonvpn-app
+proton_app_config_path="$HOME/.config/Proton/VPN/app-config.json"
+
+# var for querying the US entry/exit servers with additional params
+select_this=".value.EntryCountry == \"${country}\" \
+and .value.ExitCountry == \"${country}\" \
+and .value.Tier >= 2 \
+and .value.Load < \"${load}\" \
+and .value.Status == 1 \
+${server_state}"
+
+function successful_cmd() {
+  successful_cmd="${1}"
+  printf "  ${GREEN}${successful_cmd}\n${NOCOL}"
+}
+
+function failed_cmd() {
+  failed_cmd="${1}"
+  printf "  ${RED}${failed_cmd}\n${NOCOL}"
+  usage
+  exit 1
+}
+
+function run_my_cmd() {
+#  echo "in cmd"
+  passed_cmd="${@}"
+  ${passed_cmd}
+
+  if [[ $? -eq 0 ]]; then
+    successful_cmd "\n  ${GREEN}Success: ${passed_cmd}${NOCOL}\n"
+  else
+    failed_cmd "\n  ${RED}Something went wrong! Attempted: ${passed_cmd}${NOCOL}\n"
+  fi
+}
+
+# general function to append to commands to invoke the run_my_cmd function
+# not every kind of action can be prepended by the run_my_cmd
+function check_return() {
+  if [[ $? -eq 0 ]]; then
+    successful_cmd "${GREEN}Success.${NOCOL}\n"
+  else
+    failed_cmd "${RED}Fail.${NOCOL}\n"
+  fi
+}
+
+function get_random_server() {
+  # get a random index from the list of indexes
+  random_server_index=${server_indexes[RANDOM % ${#server_indexes[@]}]}
+
+  if [[ ${#random_server_index[@]} -ne 1 ]]; then
+    failed_cmd "\n Something went wrong setting random_server_index: ${random_server_index}"
+  fi
+  # once we have the index, get some info about it
+  random_server=$(jq -r ".LogicalServers[${random_server_index}]" ${serverlist})
+  random_server_name=$(jq -r ".LogicalServers[${random_server_index}].Name" ${serverlist})
+
+  if [[ ${#random_server_name[@]} -ne 1 ]]; then
+    failed_cmd "\n Somehow we have more than 1 server. Server: ${random_server}, Name: ${random_server_name}"
+  fi
+}
+
+function parse_serverlist() {
+  # create an array of the server indexes, according to the search params
+  mapfile -t server_indexes < <(jq -r ".LogicalServers | to_entries | map(select(${select_this})) | .[].key" "${serverlist}"); check_return
+
+  # check if the array is populated, otherwise we should fail out at this point
+  if [[ ${#server_indexes[@]} -eq 0 ]]; then
+    failed_cmd "\nWe didn't find any servers with this search term:\n${NOCOL}${select_this}\n\n"
+  fi
+
+  if [[ ${verbosity} -ge 3 ]]; then
+    printf "\n${YELLOW}DEBUG: This is the command we're using to find servers...${NOCOL}\n"
+    set -x
+    jq -r ".LogicalServers | to_entries | map(select(${select_this})) | .[].key" "${serverlist}" > /dev/null
+    set +x
+  fi
+}
+
+function stop_protonvpn() {
+  # check if protonvpn-app is running
+  if [[ $(pgrep "${proton_app_command}") ]]; then
+
+    [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  ${proton_app_command} found to be running, stopping it...${NOCOL}\n"
+    # find the network manager configs in place
+
+    [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  Finding the networking configs created by protonvpn...${NOCOL}"
+    killswitch_connection=$(nmcli c s | awk '/pvpn-killswitch/{print $1}')
+
+    [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  Stopping networking...${NOCOL}"
+    run_my_cmd nmcli networking off
+
+    [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  Removing remnant networking configs...${NOCOL}"
+    run_my_cmd killall "${proton_app_command}"
+
+  else
+    printf "${YELLOW}  ${proton_app_command} not running, continuing on...${NOCOL}\n"; check_return
+  fi
+}
+
+function replace_autoconnect_server() {
+  sed -i "s/\"connect_at_app_startup\":.*/\"connect_at_app_startup\": \"${random_server_name}\",/" ${proton_app_config_path}; check_return
+}
+
+function start_protonvpn() {
+  [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  Turning networking back on...${NOCOL}"
+  run_my_cmd nmcli networking on
+
+  [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  Starting ${proton_app_command}...${NOCOL}"
+  ${proton_app_command} > /dev/null 2>&1 &
+  check_return
+
+  if [[ ! $(pgrep ${proton_app_command}) ]]; then
+    run_my_cmd /bin/false
+  fi
+}
+
+###################################################################################
+## Below is the script runtime, calling the above functions in appropriate order ##
+###################################################################################
+
+[[ ${verbosity} -ge 2 ]] \
+  && printf "${PURPLE}INFO: Using this search term:${NOCOL}\n  ${select_this}\n"
+
+printf "${BLUE}Trying to define an array of servers...${NOCOL}"
+parse_serverlist
+
+printf "${BLUE}Getting a random server from the array...${NOCOL}"
+get_random_server
+
+[[ ${verbosity} -ge 1 ]] \
+  && printf "\n${PURPLE}This is the server we're going to connect to:${NOCOL}\n${random_server}\n"
+
+printf "${BLUE}Stopping ${proton_app_command}...${NOCOL}\n"
+stop_protonvpn
+
+printf "${BLUE}Replacing the auto-connect server with a discovered random one...${NOCOL}\n"
+replace_autoconnect_server
+
+printf "${BLUE}Starting ${proton_app_command}...${NOCOL}\n"
+start_protonvpn
