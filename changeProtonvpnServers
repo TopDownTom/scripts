@@ -13,11 +13,12 @@ function usage() {
 
 verbosity=0
 
-while getopts "c:l:hv" opt; do
+while getopts "c:l:s:hv" opt; do
   case ${opt} in
     h) usage ;;
     c) country="${OPTARG}" ;;
     l) load="${OPTARG}" ;;
+    s) state="${OPTARG}" ;;
     v) ((verbosity++)) ;;
   esac
 done
@@ -25,6 +26,11 @@ done
 # some defaults
 country=${country:-US} # default to US servers
 load=${load:-40} # below 40% load
+if [[ ! -z ${state} ]]; then
+  server_state=" and (.value.Name | contains(\"${state}\"))"
+else
+  server_state=''
+fi
 
 # variables used throughout
 proton_path="$HOME/.cache/Proton"
@@ -37,7 +43,8 @@ select_this=".value.EntryCountry == \"${country}\" \
 and .value.ExitCountry == \"${country}\" \
 and .value.Tier >= 2 \
 and .value.Load < \"${load}\" \
-and .value.Status == 1"
+and .value.Status == 1 \
+${server_state}"
 
 function run_my_cmd() {
 #  echo "in cmd"
@@ -79,6 +86,13 @@ function parse_serverlist() {
   if [[ ${#server_indexes[@]} -eq 0 ]]; then
     printf "\n${RED}We didn't find any servers with this search term:\n${NOCOL}${select_this}\n\n"
     run_my_cmd /bin/false
+  fi
+
+  if [[ ${verbosity} -ge 3 ]]; then
+    printf "\n${YELLOW}DEBUG: This is the command we're using to find servers...${NOCOL}\n"
+    set -x
+    jq -r ".LogicalServers | to_entries | map(select(${select_this})) | .[].key" "${serverlist}" > /dev/null
+    set +x
   fi
 }
 
