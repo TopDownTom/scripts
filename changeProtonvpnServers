@@ -5,7 +5,7 @@ if [[ -f $HOME/.shell_colors ]]; then
   source $HOME/.shell_colors
 fi
 
-if [[ ! $(testOnline) ]]; then
+if [[ $(testOnline; echo $?) -gt 0 ]]; then
   printf "${RED}We aren't online, exiting...${NOCOL}\n"
   exit 2
 fi
@@ -133,6 +133,8 @@ function stop_protonvpn() {
 
     [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  Removing remnant networking configs...${NOCOL}"
     run_my_cmd killall "${proton_app_command}"
+  else
+    printf "${YELLOW}  ${proton_app_command} not running, continuing on...${NOCOL}\n"; check_return
   fi
 }
 
@@ -173,7 +175,7 @@ printf "${BLUE}Stopping ${proton_app_command}...${NOCOL}\n"
 stop_protonvpn
 
 printf "${BLUE}Replacing the auto-connect server with a discovered random one...${NOCOL}\n"
-replace_autoconnect_server
+replace_autoconnect_server; check_return
 
 printf "${BLUE}Starting ${proton_app_command}...${NOCOL}\n"
 start_protonvpn
