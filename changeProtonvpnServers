@@ -5,6 +5,11 @@ if [[ -f $HOME/.shell_colors ]]; then
   source $HOME/.shell_colors
 fi
 
+if [[ ! $(testOnline) ]]; then
+  printf "${RED}We aren't online, exiting...${NOCOL}\n"
+  exit 2
+fi
+
 function usage() {
   echo "Run the script as follows:"
   echo "$(basename $0) [-h] [-vvv] [-c country_code] [-l load] [-s us_state_abbrev]"
