@@ -1,21 +1,95 @@
 #! /bin/bash
 # This auto generates a bash script, makes it executable, and symlinks it to the PATH
 
-function userHelp {
-  echo -e "\nuse: scriptGen <filename>"
+function usage {
+  printf "\nUse: $(basename $0) <filename>"
+  exit 1
 }
 
-[[ -z $1 ]] && echo "You must provide a filename" && userHelp && exit 1
-[[ "$1" == "-h" || "$1" == "--help" ]] && userHelp && exit 0
-
-script_file="$SCRIPT_DIR/$1"
-
-if [[ -f $script_file ]]; then
-  echo "File Already Exists" # Check if a file with that name exists
+if [[ -z $1 ]]; then
+  printf "\nYou must provide a filename!\n"
+  usage
 else
-  echo '#! /bin/bash' > $script_file # Add the she-bang to the first line of the script
-  chmod 750 $script_file # make it executable
-  vi $script_file # open it
-  sudo -nv
-  sudo ln -s $script_file /usr/local/sbin
+  filename="${1}"
+fi
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  usage
+fi
+
+script_file="$SCRIPT_DIR/${filename}"
+
+function add_script_template_header() {
+
+script_template="#! /bin/bash
+
+# get some colors if we have them. see dotfiles.
+if [[ -f \$HOME/.shell_colors ]]; then
+  source \$HOME/.shell_colors
+fi
+
+# basic usage help function. expand with variables as needed
+# h and v[vv] are always available
+function usage() {
+  echo \"Run the script as follows:\"
+  echo \"\$(basename \$0) [-h] [-vvv] [-o value]\"
+  exit 2
+}
+
+# set the verbosity to none by default
+verbosity=0
+# get the single-character options passed by the user
+while getopts \"a:b:c:hv\" opt; do
+  case \${opt} in
+    h) usage ;;
+    a) a=\"\${OPTARG}\" ;;
+    b) b=\"\${OPTARG}\" ;;
+    c) c=\"\${OPTARG}\" ;;
+    v) ((verbosity++)) ;;
+  esac
+done
+
+function run_my_cmd() {
+  passed_cmd=\"\${@}\"
+  \${passed_cmd} 2>/dev/null; cmd_rc=\$?
+
+  if [[ \${cmd_rc} -eq 0 ]]; then
+    report=\"\${GREEN}  Success...\"
+  else
+    report=\"\${RED}  Failed...\"
+    failed=true
+  fi
+
+  if [[ \${verbosity} -eq 1 ]]; then
+    printf \"\${NOCOL}\${report}\n\"
+  elif [[ \${verbosity} -eq 2 ]]; then
+    printf \"\${report}\n  \${GREEN}Ran this command:\${NOCOL} \${passed_cmd}\n\"
+  elif [[ \${verbosity} -ge 3 ]]; then
+    set -x
+    printf \"  \${passed_cmd}\n\${NOCOL}\"
+    { set +x; } 2>/dev/null
+  fi
+
+  if [[ \${failed} ]]; then
+    printf \"\${YELLOW}  Exiting with RC: \${cmd_rc}\${NOCOL}\n\"
+    exit \${cmd_rc}
+  fi
+
+}
+
+# put your code below here, and prepend run_my_cmd to inherit verbosity
+# example
+run_my_cmd echo \"hello, world!\"
+"
+
+echo "${script_template}" > "${script_file}"
+chmod 750 "${script_file}"
+}
+
+if [[ -f "${script_file}" ]]; then
+  echo "File Already Exists. Attempting to open it." # Check if a file with that name exists
+  vi "${script_file}"
+else
+  add_script_template_header
+  vi "${script_file}" # open it
 fi
