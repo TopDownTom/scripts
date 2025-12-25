@@ -2,20 +2,90 @@
 # This auto generates a bash script, makes it executable, and symlinks it to the PATH
 
 function userHelp {
-  echo -e "\nuse: scriptGen <filename>"
+  printf "\nUse: $(basename $0) <filename>"
 }
 
-[[ -z $1 ]] && echo "You must provide a filename" && userHelp && exit 1
-[[ "$1" == "-h" || "$1" == "--help" ]] && userHelp && exit 0
+if [[ -z $1 ]]; then
+  printf "\nYou must provide a filename!\n"
+  userHelp
+  exit 1
+fi
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  userHelp
+  exit 0
+fi
 
 script_file="$SCRIPT_DIR/$1"
+
+function add_script_template_header() {
+
+script_template="#! /bin/bash
+
+# get some colors if we have them. see dotfiles.
+if [[ -f \$HOME/.shell_colors ]]; then
+  source \$HOME/.shell_colors
+fi
+
+# basic usage help function. expand with variables as needed
+# h and v[vv] are always available
+function usage() {
+  echo \"Run the script as follows:\"
+  echo \"\$(basename \$0) [-h] [-vvv] [-o value]\"
+  exit 2
+}
+
+# set the verbosity to none by default
+verbosity=0
+
+# get the single-character options passed by the user
+while getopts \"a:b:c:hv\" opt; do
+  case \${opt} in
+    h) usage ;;
+    a) a=\"\${OPTARG}\" ;;
+    b) b=\"\${OPTARG}\" ;;
+    c) c=\"\${OPTARG}\" ;;
+    v) ((verbosity++)) ;;
+  esac
+done
+
+# general function for whether or not a command suceeded
+# we get here via run_my_cmd
+function successful_cmd() {
+  successful_cmd=\"\${1}\"
+  printf \"  \${GREEN}\${successful_cmd}\n\${NOCOL}\"
+}
+
+# general function for whether or not a command failed
+# we get here via run_my_cmd
+function failed_cmd() {
+  failed_cmd=\"\${1}\"
+  printf \"  \${RED}\${failed_cmd}\n\${NOCOL}\"
+  usage
+  exit 1
+}
+
+function run_my_cmd() {
+  passed_cmd=\"\${@}\"
+  \${passed_cmd}
+
+  if [[ \$? -eq 0 ]]; then
+    successful_cmd \"\n  \${GREEN}Success: \${passed_cmd}\${NOCOL}\n\"
+  else
+    failed_cmd \"\n  \${RED}Something went wrong! Attempted: \${passed_cmd}\${NOCOL}\n\"
+  fi
+}
+"
+
+echo "${script_template}" > "${script_file}"
+chmod 750 "${script_file}"
+}
 
 if [[ -f $script_file ]]; then
   echo "File Already Exists" # Check if a file with that name exists
 else
-  echo '#! /bin/bash' > $script_file # Add the she-bang to the first line of the script
-  chmod 750 $script_file # make it executable
+  add_script_template_header
   vi $script_file # open it
-  sudo -nv
-  sudo ln -s $script_file /usr/local/sbin
+#  sudo -nv
+#  sudo ln -s $script_file /usr/local/sbin
 fi
