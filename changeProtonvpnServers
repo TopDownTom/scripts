@@ -103,7 +103,7 @@ function get_random_server() {
 
 function parse_serverlist() {
   # create an array of the server indexes, according to the search params
-  mapfile -t server_indexes < <(jq -r ".LogicalServers | to_entries | map(select(${select_this})) | .[].key" "${serverlist}")
+  mapfile -t server_indexes < <(jq -r ".LogicalServers | to_entries | map(select(${select_this})) | .[].key" "${serverlist}"); check_return
 
   # check if the array is populated, otherwise we should fail out at this point
   if [[ ${#server_indexes[@]} -eq 0 ]]; then
@@ -126,20 +126,21 @@ function stop_protonvpn() {
     # find the network manager configs in place
 
     [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  Finding the networking configs created by protonvpn...${NOCOL}"
-    killswitch_connection=$(nmcli c s | awk '/pvpn-killswitch/{print $1}'); check_return
+    killswitch_connection=$(nmcli c s | awk '/pvpn-killswitch/{print $1}')
 
     [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  Stopping networking...${NOCOL}"
     run_my_cmd nmcli networking off
 
     [[ ${verbosity} -ge 1 ]] && printf "${YELLOW}  Removing remnant networking configs...${NOCOL}"
     run_my_cmd killall "${proton_app_command}"
+
   else
     printf "${YELLOW}  ${proton_app_command} not running, continuing on...${NOCOL}\n"; check_return
   fi
 }
 
 function replace_autoconnect_server() {
-  sed -i "s/\"connect_at_app_startup\":.*/\"connect_at_app_startup\": \"${random_server_name}\",/" ${proton_app_config_path}
+  sed -i "s/\"connect_at_app_startup\":.*/\"connect_at_app_startup\": \"${random_server_name}\",/" ${proton_app_config_path}; check_return
 }
 
 function start_protonvpn() {
@@ -163,10 +164,10 @@ function start_protonvpn() {
   && printf "${PURPLE}INFO: Using this search term:${NOCOL}\n  ${select_this}\n"
 
 printf "${BLUE}Trying to define an array of servers...${NOCOL}"
-parse_serverlist; check_return
+parse_serverlist
 
 printf "${BLUE}Getting a random server from the array...${NOCOL}"
-get_random_server; check_return
+get_random_server
 
 [[ ${verbosity} -ge 1 ]] \
   && printf "\n${PURPLE}This is the server we're going to connect to:${NOCOL}\n${random_server}\n"
@@ -175,7 +176,7 @@ printf "${BLUE}Stopping ${proton_app_command}...${NOCOL}\n"
 stop_protonvpn
 
 printf "${BLUE}Replacing the auto-connect server with a discovered random one...${NOCOL}\n"
-replace_autoconnect_server; check_return
+replace_autoconnect_server
 
 printf "${BLUE}Starting ${proton_app_command}...${NOCOL}\n"
 start_protonvpn
