@@ -54,9 +54,9 @@ function run_my_cmd() {
   \${passed_cmd} 2>/dev/null; cmd_rc=\$?
 
   if [[ \${cmd_rc} -eq 0 ]]; then
-    report=\"\${GREEN}  Success...\"
+    report=\"\${GREEN}  Success...\${NOCOL}\"
   else
-    report=\"\${RED}  Failed...\"
+    report=\"\${RED}  Failed...\${NOCOL}\"
     failed=true
   fi
 

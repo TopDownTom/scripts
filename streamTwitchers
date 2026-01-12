@@ -1,0 +1,174 @@
+#! /bin/bash
+
+# get some colors if we have them. see dotfiles.
+if [[ -f $HOME/.shell_colors ]]; then
+  source $HOME/.shell_colors
+fi
+
+# basic usage help function. expand with variables as needed
+# h and v[vv] are always available
+function usage() {
+  echo "Run the script as follows:"
+  echo "$(basename $0) [-h] [-vvv] [-o value]"
+  exit 2
+}
+
+# set the verbosity to none by default
+verbosity=0
+# get the single-character options passed by the streamer
+while getopts "a:b:c:hv" opt; do
+  case ${opt} in
+    h) usage ;;
+    a) a="${OPTARG}" ;;
+    b) b="${OPTARG}" ;;
+    c) c="${OPTARG}" ;;
+    v) ((verbosity++)) ;;
+  esac
+done
+
+function run_my_cmd() {
+  passed_cmd="${@}"
+  ${passed_cmd} 2>/dev/null; cmd_rc=$?
+
+  if [[ ${cmd_rc} -eq 0 ]]; then
+    report="${GREEN}  Success...${NOCOL}"
+  else
+    report="${RED}  Failed...${NOCOL}"
+    failed=true
+  fi
+
+  if [[ ${verbosity} -eq 1 ]]; then
+    printf "${NOCOL}${report}\n"
+  elif [[ ${verbosity} -eq 2 ]]; then
+    printf "${report}\n  ${GREEN}Ran this index_trailnd:${NOCOL} ${passed_cmd}\n"
+  elif [[ ${verbosity} -ge 3 ]]; then
+    set -x
+    printf "  ${passed_cmd}\n${NOCOL}"
+    { set +x; } 2>/dev/null
+  fi
+
+  if [[ ${failed} ]]; then
+    printf "${YELLOW}  Exiting with RC: ${cmd_rc}${NOCOL}\n"
+    exit ${cmd_rc}
+  fi
+
+}
+
+# initialize some vars
+# the twitch url base uri
+twitch_url='https://www.twitch.tv'
+# an iterable, will always be a number
+declare -i streamer_array_index=0
+# used in construction of a json array
+index_trail=','
+
+# set some arrays
+# these are lowercase versions of "yes, do the thing"
+declare -a accept_words=( "y" "yes" )
+# a to-be json-indexable array of the streamer's usernames
+declare -a streamers='[ '
+
+# if you want to add more streamers to watch, add them here
+# the 'channel_endpoint' is whatever uri brings you to their channel on twitch
+# capitalization doesn't matter
+# anything that references these accounts is dynamically generated later in the script
+# this approach was taken in order to dynamically create case-like output
+# TODO: make this a config file somewhere on the system?
+twitch_accounts='[
+  {
+    "streamer": "gingy",
+    "channel_endpoint": "gingy"
+  },
+  {
+    "streamer": "peanut",
+    "channel_endpoint": "theburntpeanut"
+  },
+  {
+    "streamer": "hutch",
+    "channel_endpoint": "hutchmf"
+  },
+  {
+    "streamer": "cloakzy",
+    "channel_endpoint": "cloakzy"
+  }
+]'
+
+# get the number of streamers from the json object above
+number_of_accounts=$(echo ${twitch_accounts} | jq '[.[] | select(.streamer != null)] | length')
+
+# loop through each entry in the twitch_accounts
+for streamer in $(echo "$twitch_accounts" | jq -c '.[]'); do
+  # do some math, to determine if this is the last account to process
+  let find_last_streamer_entry=${number_of_accounts}-${streamer_array_index}
+
+  # grab the 'streamer' from the twitch_accounts iterable
+  streamer="$(echo $streamer | jq -r '.streamer')"
+
+  # end the json array with a ']' if this is the last streamer
+  if (( find_last_streamer_entry == 1 )); then
+    index_trail=' ]'
+  fi
+
+  # generate the index for this loop iteration
+  streamer_index="{ \"id\": ${streamer_array_index}, \"streamer\": \"${streamer}\" }${index_trail}"
+  # add the index to the array
+  streamers+=$streamer_index
+  ((streamer_array_index++))
+done
+
+# show the streamers we have configured
+printf "${GREEN}Here are the streamers we have configured to show you:${NOCOL}\n"
+echo ${streamers[@]} | jq
+read -p "Select the id of the streamer you want to stream:  " choose_streamer
+
+# guard against choosing a number outside the range of acceptable ids
+if (( choose_streamer > ( number_of_accounts - 1 ) )) || [[ ${choose_streamer} -lt 0 ]]; then
+  printf "${RED}You chose a number outside the range...Exiting.${NOCOL}\n"
+  exit 2
+fi
+
+# extract the streamer name from the generated json object.
+stream_of_choice=$(echo ${streamers} | jq ".[] | select(.id == $choose_streamer) | .streamer")
+url_of_choice=$(echo ${twitch_accounts} | jq ".[] | select(.streamer == $stream_of_choice) | .channel_endpoint")
+
+streamer=${stream_of_choice//\"/}
+endpoint=${url_of_choice//\"/}
+
+# check if the streamer is live
+streamer_online_file=$(mktemp /tmp/${streamer}.XXXX)
+run_my_cmd curl -s --output ${streamer_online_file} ${twitch_url}/${endpoint}
+
+# https://stackoverflow.com/questions/75376762/how-to-check-if-a-twitch-streamer-is-live
+if [[ $(grep -q '"isLiveBroadcast":true' ${streamer_online_file}; echo $?) -eq 0 ]]; then
+  printf "${GREEN}Streamer is live!${NOCOL}\n"
+  is_online=1
+else
+  printf "${YELLOW}Streamer is offline. Exiting...${NOCOL}\n"
+  exit 1
+fi
+
+run_my_cmd rm ${streamer_online_file}
+
+if [[ ${is_online} -eq 1 ]]; then
+  read -p "Do you want to begin watching ${streamer} (y/n)? " start_stream
+
+  for accept in ${accept_words[@]}; do
+    if [[ "${start_stream,,}" == "${accept}" ]]; then
+      printf "${BLUE}Passing this off to mpv. Stream should start momentarily...${NOCOL}\n"
+      do_stream=1
+      break
+    fi
+  done
+
+  if [[ -z ${do_stream} ]]; then
+    printf "${YELLOW}Exiting...${NOCOL}\n"
+    exit 1
+  fi
+
+fi
+
+if [[ ${do_stream} -eq 1 ]]; then
+  /usr/bin/mpv --quiet --profile=fast --hwdec=auto ${twitch_url}/${endpoint} & disown
+fi
+
+exit 0
