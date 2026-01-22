@@ -1,0 +1,198 @@
+#! /bin/bash
+
+# get some colors if we have them. see dotfiles.
+if [[ -f $HOME/.shell_colors ]]; then
+  source $HOME/.shell_colors
+fi
+
+# basic usage help function. expand with variables as needed
+# h and v[vv] are always available
+function usage() {
+  echo "Run the script as follows:"
+  echo "$(basename $0) [-h] [-vvv] [-o value]"
+  exit 2
+}
+
+# set the verbosity to none by default
+verbosity=0
+# get the single-character options passed by the streamer
+while getopts "s:c:fhvy" opt; do
+  case ${opt} in
+    h) usage ;;
+    c) config="${OPTARG}" ;;
+    s) streamer="${OPTARG}" ;;
+    f) force="${OPTARG}" ;;
+    v) ((verbosity++)) ;;
+    y) yes_watch="yes" ;;
+  esac
+done
+
+# transform the verbosity into a passable array
+if [[ ${verbosity} -ge 1 ]]; then
+  verbose_array='-'
+  for ((length=1;length<=verbosity;length++)); do
+    verbose_array+='v'
+  done
+fi
+
+# initialize some vars
+# the twitch url base uri
+twitch_url='https://www.twitch.tv'
+# an iterable, will always be a number
+declare -i streamer_array_index=0
+# used in construction of a json array
+index_trail=','
+max_retries=3
+default_config_path="${XDG_CONFIG_HOME}/streamTwitchers.json"
+integer='^[0-9]+$'
+
+# set some arrays
+# these are lowercase versions of "yes, do the thing"
+declare -a accept_words=( "y" "yes" )
+# a to-be json-indexable array of the streamer's usernames
+declare -a streamers='[ '
+
+function parse_config() {
+  if [[ ${config} ]]; then
+    if [[ -f ${config} ]]; then
+      parse_this_config="${config}"
+    else
+      printf "${YELLOW}Didn't find this config file:${NOCOL} ${config}. ${YELLOW}Using the default.${NOCOL}\n"
+      parse_this_config="${default_config_path}"
+    fi
+  else
+    parse_this_config="${default_config_path}"
+  fi
+
+  mapfile twitch_accounts < <(jq . ${parse_this_config})
+
+  # get the number of streamers from the json object above
+  number_of_accounts=$(echo ${twitch_accounts[@]} | jq '[.[] | select(.streamer != null)] | length')
+}
+
+function generate_streamer_array() {
+  # loop through each entry in the twitch_accounts
+  for streamer in $(echo "${twitch_accounts[@]}" | jq -c '.[]'); do
+    # do some math, to determine if this is the last account to process
+    let find_last_streamer_entry=${number_of_accounts}-${streamer_array_index}
+
+    # grab the 'streamer' from the twitch_accounts iterable
+    streamer="$(echo $streamer | jq -r '.streamer')"
+
+    # end the json array with a ']' if this is the last streamer
+    if (( find_last_streamer_entry == 1 )); then
+      index_trail=' ]'
+    fi
+
+    # generate the index for this loop iteration
+    streamer_index="{ \"id\": ${streamer_array_index}, \"streamer\": \"${streamer}\" }${index_trail}"
+    # add the index to the array
+    streamers+=$streamer_index
+    ((streamer_array_index++))
+  done
+
+  if [[ ${#streamers[@]} -le 0 ]]; then
+    printf "${YELLOW}Something went wrong creating the 'streamers' array. Exiting${NOCOL}\n"
+    usage
+  fi
+}
+
+function show_us_the_streamers() {
+  # show the streamers we have configured
+  printf "${GREEN}Below are the configured streamers:${NOCOL}\n"
+  echo ${streamers[@]} | jq
+  echo
+}
+
+function choose_the_streamer() {
+  while [[ -z ${choose_streamer} && ${attempt_count} -le ${max_retries} ]]; do
+    read -p "Select the id of the streamer you want to stream: " choose_streamer
+
+    if [[ ! $choose_streamer =~ $integer ]] ; then
+      printf "${YELLOW}Please select an 'id' from the provided list${NOCOL}\n"
+      unset choose_streamer
+    elif [[ ${attempt_count} -gt ${max_retries} ]]; then
+      printf "${RED}Max retries exceeded. Please select an 'id' from the provided list.${NOCOL}\n"
+      usage
+    fi
+
+    # guard against choosing a number outside the range of acceptable ids
+    if (( choose_streamer > ( number_of_accounts - 1 ) )) || [[ ${choose_streamer} -lt 0 ]]; then
+      printf "${RED}You chose a number outside the range${NOCOL}\n"
+      unset choose_streamer
+    fi
+
+  ((attempt_count++))
+
+  done
+}
+
+# extract the streamer name from the generated json object.
+function extract_url_from_choice() {
+  stream_of_choice=$(echo ${streamers} | jq ".[] | select(.id == $choose_streamer) | .streamer")
+  url_of_choice=$(echo ${twitch_accounts[@]} | jq ".[] | select(.streamer == $stream_of_choice) | .channel_endpoint")
+
+  streamer=${stream_of_choice//\"/}
+  endpoint=${url_of_choice//\"/}
+}
+
+# check if the streamer is live
+function check_if_streamer_live() {
+  streamer_online_file=$(mktemp /tmp/${streamer}.XXXX)
+  run_my_cmd ${verbose_array} -i "curl -s --output ${streamer_online_file} ${twitch_url}/${endpoint}"
+
+  # https://stackoverflow.com/questions/75376762/how-to-check-if-a-twitch-streamer-is-live
+  if [[ $(grep -q '"isLiveBroadcast":true' ${streamer_online_file}; echo $?) -eq 0 ]]; then
+    printf "${GREEN}${streamer} is live!${NOCOL}\n"
+    is_online=1
+  else
+    printf "${YELLOW}${streamer} is offline. Exiting...${NOCOL}\n"
+    exit 1
+  fi
+
+  run_my_cmd ${verbose_array} -i "rm ${streamer_online_file}"
+}
+
+function ask_to_start() {
+  # if the streamer is online, make some further decisions
+  if [[ ${is_online} -eq 1 ]]; then
+
+    if [[ ${yes_watch} -eq 0 ]]; then
+      read -p "Do you want to begin watching ${streamer} (y/n)? " start_stream
+    else
+      start_stream="${yes_watch}"
+    fi
+
+    for accept in ${accept_words[@]}; do
+      if [[ "${start_stream,,}" == "${accept}" ]]; then
+        printf "${BLUE}Passing this off to mpv. Stream should start momentarily...${NOCOL}\n"
+        do_stream=1
+        break
+      fi
+    done
+
+    if [[ -z ${do_stream} ]]; then
+      printf "${YELLOW}Exiting...${NOCOL}\n"
+      exit 1
+    fi
+
+  fi
+}
+
+function pass_to_mpv() {
+  if [[ ${do_stream} -eq 1 ]]; then
+  #  /usr/bin/mpv --profile=fast --msg-level=all=trace --log-file=/tmp/mpv-stream-${streamer}-$(date +%F-%T).log ${twitch_url}/${endpoint} & disown
+    run_my_cmd ${verbose_array} -i "/usr/bin/mpv --profile=fast ${twitch_url}/${endpoint} & disown"
+  fi
+}
+
+parse_config
+generate_streamer_array
+show_us_the_streamers
+choose_the_streamer
+extract_url_from_choice
+check_if_streamer_live
+ask_to_start
+pass_to_mpv
+
+exit 0

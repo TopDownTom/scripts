@@ -1,0 +1,67 @@
+#! /bin/bash
+
+# get some colors if we have them. see dotfiles.
+if [[ -f $HOME/.shell_colors ]]; then
+  source $HOME/.shell_colors
+fi
+
+# basic usage help function. expand with variables as needed
+# h and v[vv] are always available
+function usage() {
+  echo "Run the script as follows:"
+  echo "$(basename $0) [-h] [-vvv] [-o value]"
+  exit 2
+}
+
+# set the verbosity to none by default
+verbosity=0
+# get the single-character options passed by the user
+while getopts "i:hv" opt; do
+  case ${opt} in
+    h) usage ;;
+    i) INPUT="${OPTARG}" ;;
+    v) ((verbosity++)) ;;
+  esac
+done
+
+function run_cmd() {
+  passed_cmd="${@}"
+  ${passed_cmd} 2>/dev/null; cmd_rc=$?
+
+  log_levels=( 'NOTICE' 'INFO' 'DEBUG' )
+  if [[ ${verbosity} -ge 1 ]] && [[ ${verbosity} -gt ${#log_levels[@]} ]]; then
+      log_level='DEBUG'
+  else
+      log_level=${log_levels[verbosity-1]}
+  fi
+
+  if [[ ${verbosity} -gt 0 ]]; then
+    printf "  [ ${log_level} ] Running command..."
+  fi
+
+  if [[ ${cmd_rc} -eq 0 ]]; then
+    report="${GREEN}Success${NOCOL}"
+  else
+    report="${RED}Failed${NOCOL}"
+    failed=true
+  fi
+
+  if [[ ${verbosity} -eq 1 ]]; then
+    printf "${NOCOL}${report}.\n"
+  elif [[ ${verbosity} -eq 2 ]]; then
+    printf "${report}.\n  [ ${log_level} ] Ran this command:${NOCOL} ${passed_cmd}\n"
+  elif [[ ${verbosity} -ge 3 ]]; then
+    printf "${report}.\n  [ ${log_level} ] ${NOCOL}"
+    set -x
+    printf "  ${passed_cmd}\n${NOCOL}"
+    { set +x; } 2>/dev/null
+  fi
+
+  if [[ ${failed} ]]; then
+    printf "${YELLOW}  Exiting with RC: ${cmd_rc}${NOCOL}\n"
+    exit ${cmd_rc}
+  fi
+
+}
+
+run_cmd "${INPUT}"
