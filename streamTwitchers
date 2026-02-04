@@ -1,5 +1,14 @@
 #! /bin/bash
 
+# Stream from twitch via mpv and yt-dlp.
+# A config file (default $XDF_CONFIG_HOME/.streamTwitchers.json) contains a json object in the following form:
+# [
+#   {
+#     "streamer": "a streamer nickname",
+#     "channel_endpoint": "the endpoint on twitch"
+#   }
+# ]
+
 # get some colors if we have them. see dotfiles.
 if [[ -f $HOME/.shell_colors ]]; then
   source $HOME/.shell_colors
@@ -9,19 +18,18 @@ fi
 # h and v[vv] are always available
 function usage() {
   echo "Run the script as follows:"
-  echo "$(basename $0) [-h] [-vvv] [-o value]"
+echo "$(basename $0) [-h] [-vvv] [-c /path/to/your/config] [-e endpoint] [-y]"
   exit 2
 }
 
 # set the verbosity to none by default
 verbosity=0
 # get the single-character options passed by the streamer
-while getopts "s:c:fhvy" opt; do
+while getopts "e:c:s:hvy" opt; do
   case ${opt} in
     h) usage ;;
     c) config="${OPTARG}" ;;
-    s) streamer="${OPTARG}" ;;
-    f) force="${OPTARG}" ;;
+    e) endpoint="${OPTARG}" ;;
     v) ((verbosity++)) ;;
     y) yes_watch="yes" ;;
   esac
@@ -111,7 +119,9 @@ function choose_the_streamer() {
     if [[ ! $choose_streamer =~ $integer ]] ; then
       printf "${YELLOW}Please select an 'id' from the provided list${NOCOL}\n"
       unset choose_streamer
-    elif [[ ${attempt_count} -gt ${max_retries} ]]; then
+    fi
+
+    if [[ ${attempt_count} -ge ${max_retries} ]]; then
       printf "${RED}Max retries exceeded. Please select an 'id' from the provided list.${NOCOL}\n"
       usage
     fi
@@ -182,15 +192,20 @@ function ask_to_start() {
 function pass_to_mpv() {
   if [[ ${do_stream} -eq 1 ]]; then
   #  /usr/bin/mpv --profile=fast --msg-level=all=trace --log-file=/tmp/mpv-stream-${streamer}-$(date +%F-%T).log ${twitch_url}/${endpoint} & disown
-    run_my_cmd ${verbose_array} -i "/usr/bin/mpv --profile=fast ${twitch_url}/${endpoint} & disown"
+    /usr/bin/mpv --profile=fast ${twitch_url}/${endpoint} & disown
   fi
 }
 
-parse_config
-generate_streamer_array
-show_us_the_streamers
-choose_the_streamer
-extract_url_from_choice
+if ! [[ ${endpoint} ]]; then
+  parse_config
+  generate_streamer_array
+  show_us_the_streamers
+  choose_the_streamer
+  extract_url_from_choice
+else
+  streamer="${endpoint}"
+fi
+
 check_if_streamer_live
 ask_to_start
 pass_to_mpv
