@@ -12,14 +12,35 @@ timeStart=$(date +%s)
 # the directory you'll be downloading videos to
 videoDir=$HOME/videos/yt
 
+# set the verbosity to none by default
+verbosity=0
+while getopts "b:hv" opt; do
+  case ${opt} in
+    h) usage ;;
+    b) binary="${OPTARG}" ;;
+    v) ((verbosity++)) ;;
+  esac
+done
+
+# transform the verbosity into a passable array
+if [[ ${verbosity} -ge 1 ]]; then
+  verbose_array='-'
+  for ((length=1;length<=verbosity;length++)); do
+    verbose_array+='v'
+  done
+fi
+
 # Process the incoming stdin
-read inbound_link inbound_filename
+read stdin_link stdin_filename
+
+# set the yt-dlp binary to use
+ytdlp_bin="${binary:-$(type yt-dlp)}"
 
 # the link to the video
-link="${inbound_link}"
+link="${stdin_link}"
 
 # the name you want to call the downloaded video. this variable is optional
-filename="${inbound_filename}"
+filename="${stdin_filename}"
 
 # store the script PID
 vidQueue_pid=$$
@@ -58,11 +79,12 @@ createLogging () {
       writeLog "No logdir existed, created one..."
     fi
   fi
+
 }
 
 # if we don't pass a title for the video, get one from yt-dlp
 getFilename () {
-  filename=$(/usr/bin/yt-dlp "${link}" --print filename --skip-download 2> /dev/null)
+  filename=$(${ytdlp_bin} ${verbose_array[@]} "${link}" --print filename --skip-download 2> /dev/null)
   # check if the filename has the extension at the end. if so, remove it
   for ext in "${extensions[@]}";
   do
@@ -99,17 +121,17 @@ constructDownloadCommand () {
   # for those of us with older tech that doesn't handle 4K/120FPS so well
   format="-f bestvideo*[height<2160]+bestaudio"
 
-  writeLog "Trying to get format of: /usr/bin/yt-dlp --simulate \"${format}\" \"${link}\""
-  checkFormat=$(/usr/bin/yt-dlp --quiet --simulate "${format}" "${link}" 2> /dev/null); checkFormat_rc=$?
+  writeLog "Trying to get format of: ${ytdlp_bin} ${verbose_array[@]} --simulate \"${format}\" \"${link}\""
+  checkFormat=$(${ytdlp_bin} ${verbose_array[@]} --quiet --simulate "${format}" "${link}" 2> /dev/null); checkFormat_rc=$?
 
   # If we can't reduce the resolution to <2160, then just let yt-dlp get the best format itself
   if [[ ${checkFormat_rc} != 0 ]]; then
     writeLog "We couldn't restrict the resolution to <2160, so we're letting yt-dlp take over"
     unset format
-    downloadCommand="/usr/bin/yt-dlp -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames"
+    downloadCommand="${ytdlp_bin} ${verbose_array[@]} -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames"
   else
     writeLog "Obtained requested lower-resolution format"
-    downloadCommand="/usr/bin/yt-dlp -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames \"${format}\""
+    downloadCommand="${ytdlp_bin} ${verbose_array[@]} -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames \"${format}\""
   fi
 
   # Arbitrary sleep to prevent too many subsequent calls. Attempt to stop bot detection
@@ -118,6 +140,7 @@ constructDownloadCommand () {
 }
 
 download () {
+
   # Get the video filename if not passed
   if [[ -z "${filename}" ]]; then
     writeLog "No filename given, obtaining one from yt-dlp"
@@ -150,6 +173,8 @@ download () {
   writeLog "URL: ${link}"
   writeLog "Format: ${format}"
   writeLog "PID: ${vidQueue_pid}"
+  if [[ ${binary} ]]; then writeLog "Binary used: ${binary}"; fi
+  if [[ ${verbosity} -gt 0 ]]; then writeLog "Verbosity: ${verbose_array[@]}"; fi
 
 ## new systemd stuff
 
