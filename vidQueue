@@ -34,7 +34,7 @@ fi
 read stdin_link stdin_filename
 
 # set the yt-dlp binary to use
-ytdlp_bin="${binary:-$(type yt-dlp)}"
+ytdlp_bin="${binary:-$(type -p yt-dlp)}"
 
 # the link to the video
 link="${stdin_link}"
