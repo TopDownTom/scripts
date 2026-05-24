@@ -3,7 +3,8 @@
 # a script to check if the shell session we're in is an SSH session.
 # you'd think it would be obvious, but not when all internal machines share dotfiles
 
-RED='\e[0;31m'
+YELLOW='\e[33m'
+NOCOL='\e[0m'
 # check for var
 activeSSHCon=$(env | grep SSH_CLIENT)
 if [[ -n $activeSSHCon ]]; then
@@ -14,5 +15,5 @@ if [[ -n $activeSSHCon ]]; then
   # check if we know this ip from our ssh config
   hostnameFrom=$(grep $ipFrom $HOME/.ssh/config | awk '{print $3}')
   # print this info in a format PS1 recognizes
-  printf "${RED}[SSH:${hostnameFrom:=$ipFrom}->$(cat /etc/hostname)]${NOCOL}" || printf ""
+  printf "${YELLOW}[SSH:${hostnameFrom:=$ipFrom}->$(cat /etc/hostname)]${NOCOL}" || printf ""
 fi
