@@ -3,14 +3,18 @@
 # if we're in the root or $HOME directory, bail due to size/time
 [[ $PWD == / || $PWD == $HOME ]] && exit 4
 
-# colors
-RED='\e[0;31m'
-GREEN_BOLD='\e[1;32m'
-GREEN='\e[0;32m'
-YELLOW='\e[0;33m'
-BLUE='\e[0;34m'
-PURPLE='\e[0;35m'
-NOCOL='\e[0m'
+if [[ $HOME/.shell_colors ]]; then
+  source $HOME/.shell_colors
+else
+  # colors
+  RED='\e[0;31m'
+  BGREEN='\e[1;32m'
+  GREEN='\e[0;32m'
+  YELLOW='\e[0;33m'
+  BLUE='\e[0;34m'
+  PURPLE='\e[0;35m'
+  NOCOL='\e[0m'
+fi
 
 function gitvars() {
   gitInfo=($(git status -b --short))
@@ -26,8 +30,15 @@ function gitvars() {
   [[ -z $tag ]] && tag='' || tag="$tag-"
   describe=$(tail -n1 $a/.git/logs/HEAD | awk '{print $2}')
   describeShort=${describe::7}
-  printf "${GREEN_BOLD}$branch${NOCOL} "
+
+  if [[ -f $PWD/.gitignore ]]; then
+    gitIgnore="i"
+  else
+    gitIgnore=''
+  fi
+  printf "${BGREEN}$branch${NOCOL} "
   printf "${GREEN}$tag$describeShort${NOCOL} "
+  printf "${YELLOW}${gitIgnore}${NOCOL} "
   printf "${RED}$porcelain${NOCOL} "
   printf "${WARN_TYPE}$aheadBehind${NOCOL} "
 }
