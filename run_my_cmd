@@ -1,67 +1,160 @@
 #! /bin/bash
 
-# get some colors if we have them. see dotfiles.
-if [[ -f $HOME/.shell_colors ]]; then
-  source $HOME/.shell_colors
-fi
+# This is a general logging script/function not meant to be run on its own, but instead invoked from elsewhere (a caller script).
+# depending on the given verbosity, this script writes different things to stdout and helps with debugging and proper
+# error handling and exiting.
+#
+# This function expects two items; an environment variable RUN_CMD_VERBOSITY, and a command (contained within argv).
+# The caller script would itself have handling (via getopts) for verbosity, which would be passed to this function.
+# Here's an example invocation from a caller script scriptA.sh
+#
+# #! /bin/bash
+# if [[ $(type -p run_my_cmd) ]]; then
+#   source ${SCRIPT_DIR}/run_my_cmd
+# else
+#   echo "This script requires 'run_my_cmd' for logging purposes. You must have it. Exiting."
+#   exit 327
+# fi
+# while getopts "v" opt; do
+#   case ${opt} in
+#     v) ((verbosity++)) ;;
+#   esac
+# done
+# export RUN_CMD_VERBOSITY="$verbosity"
+# echo my cool script
+# run_cmd -- echo my cool script
+# run_cmd -i 1 -- mkdir $HOME
+# run_cmd -i 67 -- bash -c "exit 67; echo $?"
+# # fin
 
-# basic usage help function. expand with variables as needed
-# h and v[vv] are always available
-function usage() {
-  echo "Run the script as follows:"
-  echo "$(basename $0) [-h] [-vvv] [-o value]"
-  exit 2
-}
 
-# set the verbosity to none by default
-verbosity=0
-# get the single-character options passed by the user
-while getopts "i:hv" opt; do
-  case ${opt} in
-    h) usage ;;
-    i) INPUT="${OPTARG}" ;;
-    v) ((verbosity++)) ;;
-  esac
-done
+# The optional '-i' option can be a single or comma-separated list of return codes which a user may expect, that might otherwise
+# trigger your script to fail. An example of this might be suppression of a `mkdir` for an already existing directory,
+# which returns code 1.
+# In the above example ignoring 67, that bash subshell will exit with code 67, and we're instructing run_cmd to ignore such
+# a return that might otherwise appear as unsuccessful (i.e. non-zero).
 
-function run_cmd() {
-  passed_cmd="${@}"
-  ${passed_cmd} 2>/dev/null; cmd_rc=$?
 
-  log_levels=( 'NOTICE' 'INFO' 'DEBUG' )
-  if [[ ${verbosity} -ge 1 ]] && [[ ${verbosity} -gt ${#log_levels[@]} ]]; then
-      log_level='DEBUG'
+# TODO: write to a logfile.
+run_cmd() {
+
+  # get some colors if we have them. see dotfiles.
+  if [[ -f "$HOME/.shell_colors" ]]; then
+    source "$HOME/.shell_colors"
   else
-      log_level=${log_levels[verbosity-1]}
+    # colors
+    RED='\e[31m'; GREEN='\e[32m'; YELLOW='\e[33m'
+    BLUE='\e[34m'; PURPLE='\e[35m'
+
+    # bold colors
+    BRED='\e[1;31m'; BGREEN='\e[1;32m'; BYELLOW='\e[1;33m'
+    BBLUE='\e[1;34m'; BPURPLE='\e[1;35m'
+
+    # formatting
+    NOCOL='\e[0m'; UNDERLINE='\e[4m'
   fi
 
-  if [[ ${verbosity} -gt 0 ]]; then
-    printf "  [ ${log_level} ] Running command..."
+  # how to use this. likely never invoked.
+  usage() {
+    echo "Include in your script as follows:"
+    echo "$(basename "${BASH_SOURCE[0]}") [-h] [-vvvv] [-i integer] -- yourcommand"
+    return 2
+  }
+
+  ## VARS ##
+  # passed-in vars
+  # a single or comma-separate list of integers, for which we should assume success is a command returns this code
+  local ignore_these=0
+  # how verbose should our output be?
+  local RUN_CMD_VERBOSITY=0
+  # translation variable from the env var to a neat string within this function
+  local verbosity="${RUN_CMD_VERBOSITY}"
+  # getopts case variable
+  local opt
+  # getopts index
+  local OPTIND=1
+  # used to show Success for Failure
+  local report
+  # used to determine whether or not the command should be considered failed
+  local failed=false
+  # used to determine whether or not the command should be considered successful, even if the return is non-zero
+  local ignore=false
+  # the possible log levels. these correlate with verbosity = 1, 2, 3, etc.
+  local log_levels=( 'NOTICE' 'INFO' 'DEBUG' )
+  # the string representation of the above array index
+  local log_level
+
+  while getopts "i:h" opt; do
+    case ${opt} in
+      h) usage; return $? ;;
+      i) ignore_these="${OPTARG}" ;;
+    esac
+  done
+
+  shift $((OPTIND - 1))
+
+  # split a comma-separated list of return codes to ignore into an array
+  IFS=, read -ra ignore_list <<< "${ignore_these[@]}"
+
+  # if we've reached the end of the passed args, the rest should be interpretted as the command to run
+  if [[ "${1:-}" == "--" ]]; then
+    shift
   fi
 
-  if [[ ${cmd_rc} -eq 0 ]]; then
+  # ingest the argv elements as given to this function
+  local passed_cmd=("$@")
+  # run the given command
+  "${passed_cmd[@]}"
+
+  # capture the return code from the above
+  local cmd_rc=$?
+
+  # check if the user gave an acceptable RC that might otherwise cause a failure
+  for rc in "${ignore_list[@]}"; do
+    if [[ $cmd_rc -eq $rc ]]; then
+      ignore=true
+      ignore_string="Command produced RC: ${cmd_rc}, but we ignored failing on it\n"
+      break
+    fi
+  done
+
+  # check if the return code is zero, or an ignored non-zero integer
+  if [[ ${cmd_rc} -eq 0 || "${ignore}" == "true" ]]; then
     report="${GREEN}Success${NOCOL}"
   else
     report="${RED}Failed${NOCOL}"
     failed=true
   fi
 
+  # if user gave a verbosity, and it's greater than the levels we have defined, set it to debug (the highest level)
+  if [[ ${verbosity} -ge 1 ]] && [[ ${verbosity} -gt ${#log_levels[@]} ]]; then
+    log_level='DEBUG'
+  else
+    # verbosity=0 => NO OUTPUT, 1 => NOTICE, 2 => INFO, 3+ => DEBUG
+    log_level=${log_levels[verbosity-1]}
+  fi
+
+  # write things to stdout depending on the verbosity requested
+  # TODO: this could use some cleaning up
   if [[ ${verbosity} -eq 1 ]]; then
-    printf "${NOCOL}${report}.\n"
+    printf "${report}.\n"
+
   elif [[ ${verbosity} -eq 2 ]]; then
-    printf "${report}.\n  [ ${log_level} ] Ran this command:${NOCOL} ${passed_cmd}\n"
+    printf "  ${report}.\n"
+    printf "  [ ${log_level} ] Ran this command:${NOCOL} ${passed_cmd[*]}\n"
+
   elif [[ ${verbosity} -ge 3 ]]; then
-    printf "${report}.\n  [ ${log_level} ] ${NOCOL}"
+    printf "  ${report}.\n"
+    printf "  [ ${log_level} ] "
     set -x
-    printf "  ${passed_cmd}\n${NOCOL}"
+    printf "  %s\n" "${passed_cmd[*]}"
     { set +x; } 2>/dev/null
+
   fi
 
-  if [[ ${failed} ]]; then
-    printf "${YELLOW}  Exiting with RC: ${cmd_rc}${NOCOL}\n"
-    exit ${cmd_rc}
+  # if the command failed, cause the caller script to exit with the relevant return code
+  if [[ "${failed}" == "true" ]]; then
+    printf "${YELLOW}  Command resulted in RC: ${cmd_rc}. Exiting...${NOCOL}\n"
+    exit "${cmd_rc}"
   fi
-
 }
-
-run_cmd "${INPUT}"
