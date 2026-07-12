@@ -3,7 +3,7 @@
 # This script downloads yt videos to a dir and notifies the user on start and completion
 # It also logs to the user's home dir (assumed not to be run as root) in ~/.local/state/vidQueue/queue.log
 # Run this script like:
-# vidQueue https://hyperlink.com/whatever [filename] ['title']
+# echo https://hyperlink.com/whatever ['filename'] | vidQueue
 
 # set the start time of the script
 timeStart=$(date +%s)
@@ -11,6 +11,14 @@ timeStart=$(date +%s)
 # set some variables
 # the directory you'll be downloading videos to
 videoDir=$HOME/videos/yt
+
+# basic usage help function. expand with variables as needed
+# h and v[vv] are always available
+function usage() {
+  echo "Run the script as follows:"
+  echo "echo https://hyperlink.com/whatever ['filename'] | $(basename $0)"
+  exit 2
+}
 
 # set the verbosity to none by default
 verbosity=0
@@ -56,7 +64,7 @@ writeLog () {
   logMessage=${1}
   priority=${2:-info}
   logger -p ${priority} "vidQueue [ ${randomVidId} ]: ${logMessage}"
-#  echo "[ ${randomVidId} ]: ${1}" >> ${logfile}
+  echo "vidQueue [ ${randomVidId} ]: ${1}" >> ${logfile}
   # this can be used to also write out to stdout and the logfile
 #  echo "[ ${randomVidId} ]: ${1}" 2>&1 | tee -a ${logfile}
 }
