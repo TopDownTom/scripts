@@ -6,6 +6,7 @@ source $HOME/.shell_colors
 # set the newsboat database path
 dbPath="$HOME/.local/share/newsboat/cache.db"
 #CHANNEL_NAME_FZF="${1}"
+pythonBin=$(type -p python3)
 
 VALID_ARGS=$(getopt -o c:dh --long channel:,download,'help' -- "$@")
 if [[ $? -ne 0 ]]; then
@@ -76,7 +77,7 @@ decodeUrl() {
 }
 
 pythonDecodeUrl() {
-python << END
+${pythonBin} << END
 import urllib.parse
 
 url = "${1}"
