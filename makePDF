@@ -8,10 +8,11 @@ file=${1%.*}
 
 #This helps keep the main directories clean of `unnecessary' files.
 function moveLogs {
-  mv $file.aux build
-  mv $file.fls build
-  mv $file.log build
-  mv $file.pdf build
+  mv $file.aux build/
+  mv $file.fls build/
+  mv $file.log build/
+  mv $file.pdf build/
+  mv $file.out build/
 }
 
 #Check if a pdf of the file is already open. Zathura supports live-refreshing.
@@ -22,5 +23,5 @@ then
 else
   pdflatex $file.tex
   moveLogs
-  zathura $PWD/build/$file.pdf &
+  $PDFVIEWER $PWD/build/$file.pdf &
 fi
