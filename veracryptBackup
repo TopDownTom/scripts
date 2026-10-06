@@ -1,0 +1,199 @@
+#! /bin/bash
+
+## exit codes
+# 1 - mounting the veracrypt volume failed, even after multiple attempts. something is wrong!
+# 2 - you exited due to invoking the usage() function. considered a safe exit.
+# 3 - you exited after opting out of unmounting the veracrypt volume. considered a safe exit.
+# 127 - you don't have veracrypt installed. considered a safe exit, but why?
+# 227 - you gave an illegal option. what are you doing?
+# 327 - you don't have the script run_my_cmd
+# else - you're invoking run_cmd and it failed with some return code. it'll spit that out to you
+
+# we of course need veracrypt installed for any of this to make sense
+if [[ ! $(type veracrypt) ]]; then
+  echo "This script requires veracrypt. You must install it. Exiting."
+  exit 127
+fi
+
+# we need run_my_cmd for logging purposes. see scripts for more info
+if [[ $(type -p run_my_cmd) ]]; then
+  source ${SCRIPT_DIR}/run_my_cmd
+else
+  echo "This script requires 'run_my_cmd' for logging purposes. You must have it. Exiting."
+  exit 327
+fi
+
+# script start time
+start_time=$(date +%s)
+
+# get some colors if we have them. see dotfiles.
+if [[ -f $HOME/.shell_colors ]]; then
+  source $HOME/.shell_colors
+fi
+
+# basic usage help function. expand with variables as needed
+# h and v[vv] are always available
+function usage() {
+  echo "Run the script as follows:"
+  echo "$(basename $0) [-h] [-vvv] [-l /path/to/vcrypt/volume/location] [-t /path/to/mountpoint]"
+  exit 2
+}
+
+# set the verbosity to none by default
+verbosity=0
+# get the single-character options passed by the user
+while getopts "l:t:hv" opt; do
+  case ${opt} in
+    h) usage ;;
+    l) location="${OPTARG}" ;;
+    t) target_path="${OPTARG}" ;;
+    v) ((verbosity++)) ;;
+    \?) exit 227 ;;
+  esac
+done
+
+export RUN_CMD_VERBOSITY="$verbosity"
+
+## DEFINITIONS ##
+
+# these are the directories we back up each time
+backup_dirs=( "$HOME/Desktop" \
+"$HOME/Documents" \
+"$HOME/Downloads" \
+"$HOME/Music" \
+"$HOME/phone" \
+"$HOME/Pictures" \
+"$HOME/Scripts" \
+"$HOME/Videos" \
+"/home/.ecryptfs/tom/.passwords.kdbx" \
+"$HOME/.password-store" \
+"/media/testing" \
+)
+
+# target_dir is the local filesystem path to mount the unencrypted volume
+target_dir="${target_path:=/media/veracrypt1}"
+# volume_location indicates the hard-drive or thumb-drive (or partition) containing the encrypted volume
+volume_location="${location:=/dev/sdb1}"
+
+# the user can give one of these to indicate a "yes" answer to a question
+acceptable_answers=( "yes" "y" )
+
+volume_mounted=0
+
+## FUNCTIONS ##
+
+function youSaidNo() {
+  printf "${YELLOW}You chose something other than `echo ${acceptable_answers[@]} | sed 's/ / or /g'`.${NOCOL}\n"
+}
+
+function findVeracryptMount() {
+  local check_mountpoints
+  check_mountpoints=$(lsblk --raw | grep -F "${target_dir}" || true)
+
+  if [[ -n "$check_mountpoints" ]]; then
+    volume_mounted=1
+    printf "${GREEN}The veracrypt volume is mounted!${NOCOL}\n"
+  else
+    volume_mounted=0
+  fi
+}
+
+function mountVeracryptVolume() {
+  printf "Attempting to mount the veracrypt volume. Enter your encryption password...\n"
+  run_cmd -- veracrypt -t -k '' --pim=0 --protect-hidden=no "${volume_location}" "${target_dir}"
+  local rc=$?
+}
+
+function unmountVeracryptVolume() {
+  echo
+  read -p "Do you want to unmount the veracrypt volume? (y/n) " unmount_volume
+
+  for do_unmount in "${acceptable_answers[@]}"; do
+    if [[ "${unmount_volume,,}" == "${do_unmount}" ]]; then
+      unmount_volume=1
+      printf "Attempting to unmount the veracrypt volume. This might take several seconds...\n"
+      run_cmd -- veracrypt --unmount "${target_dir}"
+      local rc=$?
+      if [[ ${rc} -ne 0 ]]; then
+        printf "${RED}Something went wrong unmounting the veracrypt volume. Contact your administrator.${NOCOL}\n"
+        exit ${rc}
+      else
+        printf "  ${GREEN}Done.${NOCOL}\n"
+      fi
+    fi
+  done
+
+  if [[ "${unmount_volume}" -ne 1 ]]; then
+    youSaidNo
+    exit 3
+  fi
+}
+
+function backupDirectories() {
+
+  for do_backup in "${acceptable_answers[@]}"; do
+    if [[ "${confirm,,}" == "${do_backup}" ]]; then
+      confirmed=1
+      printf "${BLUE}Beginning backup process...${NOCOL}\n"
+      start_backup_time=$(date +%s)
+      for dir in "${backup_dirs[@]}"; do
+        if [[ -e "${dir}" ]]; then
+          printf "${BLUE}Backing up: ${NOCOL}${dir}${BLUE} to ${NOCOL}${target_dir}/\n"
+          run_cmd -- rsync -Pa --no-owner --no-group --quiet "${dir}" "${target_dir}/"
+          local rc=$?
+          if [[ ${rc} -eq 0 ]]; then
+            printf "${GREEN}  Done.${NOCOL}\n"
+          else
+            exit ${rc}
+          fi
+        else
+          printf "${YELLOW}This file/directory wasn't found: ${NOCOL}${dir}\n"
+          printf "${YELLOW}  Skipping...${NOCOL}\n"
+          unfound_dirs+=("${dir}")
+        fi
+      done
+      printf "\n${BLUE}All directories processed...${NOCOL}\n"
+      end_backup_time=$(date +%s)
+
+      if [[ ! -z ${unfound_dirs} ]]; then
+        printf "\n"
+        printf "${YELLOW}The following files or directories weren't found. Is this expected? Inform your administrator if not:${NOCOL}\n"
+        echo "${unfound_dirs[@]}"
+      fi
+    fi
+  done
+    if [[ -z "${confirmed}" ]]; then
+      youSaidNo
+      unmountVeracryptVolume
+      exit 3
+    fi
+}
+
+####
+
+# check for the volume
+findVeracryptMount
+
+attempt=0
+while [[ "${volume_mounted}" -ne 1 && "${attempt}" -lt 3 ]]; do
+  mountVeracryptVolume
+  findVeracryptMount
+  ((attempt++))
+
+  if [[ ${attempt} -eq 3 ]]; then
+    printf "${RED}Something went wrong mounting the veracrypt volume. Exiting!${NOCOL}\n"
+    exit 1
+  fi
+done
+
+if [[ "${volume_mounted}" ]]; then
+  read -p "You are about to begin the backup, are you sure? (y/n) " confirm
+fi
+
+backupDirectories
+unmountVeracryptVolume
+
+end_time=$(date +%s)
+total_time=$((end_time-start_time))
+backup_time=$((end_backup_time-start_backup_time))
+printf "\nBackup is complete. This script took: ${total_time}s. The backup took ${backup_time}s.\n"
