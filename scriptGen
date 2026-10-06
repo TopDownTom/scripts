@@ -23,9 +23,21 @@ function add_script_template_header() {
 
 script_template="#! /bin/bash
 
+## exit codes
+# 2 - you exited due to invoking the usage() function. considered a safe exit.
+# 327 - you don't have the script run_my_cmd
+
 # get some colors if we have them. see dotfiles.
 if [[ -f \$HOME/.shell_colors ]]; then
   source \$HOME/.shell_colors
+fi
+
+# we need run_my_cmd for logging purposes. see scripts repo for more info
+if [[ \$(type -p run_my_cmd) ]]; then
+  source \${SCRIPT_DIR}/run_my_cmd
+else
+  echo \"This script requires 'run_my_cmd' for logging purposes. You must have it. Exiting.\"
+  exit 327
 fi
 
 # basic usage help function. expand with variables as needed
@@ -49,37 +61,10 @@ while getopts \"a:b:c:hv\" opt; do
   esac
 done
 
-function run_my_cmd() {
-  passed_cmd=\"\${@}\"
-  \${passed_cmd} 2>/dev/null; cmd_rc=\$?
 
-  if [[ \${cmd_rc} -eq 0 ]]; then
-    report=\"\${GREEN}  Success...\"
-  else
-    report=\"\${RED}  Failed...\"
-    failed=true
-  fi
-
-  if [[ \${verbosity} -eq 1 ]]; then
-    printf \"\${NOCOL}\${report}\n\"
-  elif [[ \${verbosity} -eq 2 ]]; then
-    printf \"\${report}\n  \${GREEN}Ran this command:\${NOCOL} \${passed_cmd}\n\"
-  elif [[ \${verbosity} -ge 3 ]]; then
-    set -x
-    printf \"  \${passed_cmd}\n\${NOCOL}\"
-    { set +x; } 2>/dev/null
-  fi
-
-  if [[ \${failed} ]]; then
-    printf \"\${YELLOW}  Exiting with RC: \${cmd_rc}\${NOCOL}\n\"
-    exit \${cmd_rc}
-  fi
-
-}
-
-# put your code below here, and prepend run_my_cmd to inherit verbosity
+# put your code below here. prepend run_cmd to inherit verbosity
 # example
-run_my_cmd echo \"hello, world!\"
+run_cmd -- echo \"hello, world!\"
 "
 
 echo "${script_template}" > "${script_file}"
