@@ -1,0 +1,101 @@
+#! /bin/bash
+
+## exit codes
+# 2 - you exited due to invoking the usage() function. considered a safe exit.
+
+# get some colors if we have them. see dotfiles.
+if [[ -f $HOME/.shell_colors ]]; then
+  source $HOME/.shell_colors
+fi
+
+# basic usage help function. expand with variables as needed
+# h and v[vv] are always available
+function usage() {
+  echo "Run the script as follows:"
+  echo "$(basename $0) [-h] [-vvv]"
+  exit 2
+}
+
+# set the verbosity to none by default
+verbosity=0
+# get the single-character options passed by the user
+while getopts ":hv" opt; do
+  case ${opt} in
+    h) usage ;;
+    v) ((verbosity++)) ;;
+  esac
+done
+
+wallpaper_dir="$HOME/.wallpapers"
+
+if [[ ! -d ${wallpaper_dir} ]]; then
+  printf "${RED}You don't have ${NOCOL}${wallpaper_dir}${RED}, we can't proceed. Exiting...${NOCOL}\n"
+  exit 1
+fi
+
+# create an array of files eligible for wallpapers
+function create_bgs() {
+  mapfile -t bgs < <(find ${wallpaper_dir} -type l | sort)
+  [[ ${verbosity} -gt 0 ]] && \
+    printf "${BLUE}There are ${#bgs[@]} papers available${NOCOL}\n"
+}
+
+function generate_rand_paper() {
+  rand_pape_num=$((1 + $RANDOM % ${#bgs[@]}))
+  rand_pape_file=${bgs[rand_pape_num]}
+  realpath --quiet ${rand_pape_file} 1> /dev/null; rp_rc=$?
+
+  if [[ ${rp_rc} -ne 0 ]]; then
+    printf "${RED}Something went wrong${NOCOL}\n"
+    printf "${RED}Here is the random number:${NOCOL}${rand_pape_num}\n"
+    printf "${RED}Here is the bgs array:${NOCOL}\n"
+    num=0
+    for bg in ${bgs[@]}; do
+      echo ${num} ${bg}
+      ((num++))
+    done
+  fi
+}
+
+function set_wallpaper() {
+  [[ ${verbosity} -gt 0 ]] && \
+    printf "${BLUE}Setting wallpaper...${NOCOL}\n"
+  xwall_bin=$(type -p xwallpaper)
+  ${xwall_bin} --stretch ${rand_pape_file}; set_pape_rc=$?
+
+  if [[ ${set_pape_rc} -ne 0 ]]; then
+    printf "${RED}Something went wrong setting the wallpaper! We got: ${NOCOL}${set_pape_rc}\n"
+  else
+    [[ ${verbosity} -gt 0 ]] && \
+      printf "${GREEN}Success${NOCOL}\n"
+  fi
+}
+
+attempt=0
+success=0
+while [[ ${success} -eq 0 && ${attempt} -lt 4 ]]; do
+
+  if [[ ${attempt} -eq 0 ]]; then
+    [[ ${verbosity} -gt 0 ]] && \
+      printf "${GREEN}Generating items...${NOCOL}\n"
+    create_bgs
+    generate_rand_paper
+  fi
+
+  if [[ -f ${rand_pape_file} ]]; then
+    [[ ${verbosity} -gt 0 ]] && \
+      printf "${BLUE}Found: ${NOCOL}${rand_pape_file}\n"
+    set_wallpaper
+    success=1
+  else
+    [[ ${verbosity} -gt 0 ]] && \
+      printf "${YELLOW}We didn't find a paper, trying again...${NOCOL}\n"
+    create_bgs
+    generate_rand_paper
+  fi
+
+  ((attempt++))
+
+done
+
+exit 0
