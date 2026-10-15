@@ -1,0 +1,108 @@
+#! /bin/bash
+#
+# A simple script for (re)encrypting secret files with a list of
+# trusted GPG keys.
+# Create this file by adding a newline-separated list of trusted keys
+
+if [[ -f $HOME/.shell_colors ]]; then
+  source $HOME/.shell_colors
+fi
+
+# basic usage help function. expand with variables as needed
+function usage() {
+  echo "Run the script as follows:"
+  echo "$(basename $0) [OPTS] [ARGS]"
+  printf '  %-4s %-4s\n'  '-h' 'Print this help message and exit'
+  printf '  %-4s %-4s %-5s\n' '-c' 'The "config" file with your trusted keys.' '/path/to/trusted_pgp_keys_file'
+  printf '  %-4s %-4s %5s\n' '-p' 'The directory containing your secret files.' '/path/to/secrets/dir'
+  exit 2
+}
+
+while getopts "c:p:h" opt; do
+  case ${opt} in
+    c) config="${OPTARG}" ;;
+    p) pw_dir="${OPTARG}" ;;
+    h) usage ;;
+  esac
+done
+
+if [[ -z ${config} || ! -f ${config} ]]; then
+  printf "${RED}You must specify a config file with newline separated GPG public keys${NOCOL}\n"
+  printf "\nKeys imported into your GPG keystore are viewed by:\n"
+  printf "gpg --list-keys --keyid-format LONG\n\n"
+  usage
+fi
+
+if [[ -z ${pw_dir} || ! -d ${pw_dir} ]]; then
+  printf "${RED}You must specify a password secrets directory${NOCOL}\n"
+  printf "GNU pass default is ~/.password-store, for example.\n"
+  usage
+fi
+
+term_cols=$(tput cols)
+
+function build_gpg_command() {
+  mapfile -t recips < <(cat "${config}")
+
+  if [[ -z "${recips[@]}" ]]; then
+    printf "${RED}We found no recipients. Exiting!${NOCOL}\n"
+    exit 3
+  fi
+
+  gpg_command=(
+    gpg
+    --batch
+    --yes
+    --encrypt
+  )
+
+  for recip in ${recips[@]}; do
+    gpg_command+=( --recipient "${recip}" )
+  done
+}
+
+function check_success() {
+  inbound_rc="${1}"
+  if [[ ${inbound_rc} -ne 0 ]]; then
+    printf "${RED}Command failed, we received return code: ${inbound_rc}. Exiting!${NOCOL}\n"
+    exit ${inbound_rc}
+  fi
+}
+
+printf "${BLUE}Finding secrets within:${NOCOL} ${pw_dir}\n"
+mapfile -t secrets < <(find ${pw_dir} -type f -iname '*.gpg' -not -path '*/.git/*' -not -path 'README.txt' -not -path '.gpg-id')
+
+if [[ -z "${secrets[@]}" ]]; then
+  printf "${RED}We found no secrets in given directory: ${pw_dir}\nExiting!${NOCOL}\n"
+  exit 3
+else
+  printf "${GREEN}Found ${#secrets[@]} secrets${NOCOL}\n"
+fi
+
+printf "${BLUE}Building the GPG command with all recipients...${NOCOL}\n"
+build_gpg_command
+
+printf "${BLUE}Begin processing secrets...${NOCOL}\n\n"
+for file in ${secrets[@]}; do
+  short_file=${file#*$pw_dir/}
+  unencrypted_file=${file%%.gpg}
+  unencrypted_short_file=${short_file%%.gpg}
+
+  gpg_command+=( ${unencrypted_file} )
+
+  printf "${BLUE}Decrypt file:${NOCOL} ${short_file}${BLUE} to ${NOCOL}${unencrypted_short_file}\n"
+  gpg --batch --yes --quiet --output "${unencrypted_file}" --decrypt "${file}"; gpg_decrypt_rc=$?
+  check_success ${gpg_decrypt_rc}
+
+  printf "${BLUE}Re-encrypt file with all PGP keys:${NOCOL} ${unencrypted_short_file}${BLUE} to ${NOCOL}${short_file}\n"
+  "${gpg_command[@]}"; gpg_encrypt_rc=$?
+  check_success ${gpg_encrypt_rc}
+
+  printf "${BLUE}Remove temp file:${NOCOL} ${unencrypted_file}\n"
+  rm "${unencrypted_file}"; rm_rc=$?
+  check_success ${rm_rc}
+
+  unset gpg_command[-1]
+
+  printf '%0.s-' $(seq 1 $term_cols)
+done
