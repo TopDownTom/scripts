@@ -26,9 +26,15 @@ function gitvars() {
   else
     aheadBehind=''
   fi
+
   tag=$(ls $a/.git/refs/tags | tail -n1)
   [[ -z $tag ]] && tag='' || tag="$tag-"
-  describe=$(tail -n1 $a/.git/logs/HEAD | awk '{print $2}')
+
+  if [[ -f "${a}/.git/logs/HEAD" ]]; then
+    describe=$(tail -n1 $a/.git/logs/HEAD | awk '{print $2}')
+  else
+    describe="No HEAD"
+  fi
   describeShort=${describe::7}
 
   if [[ -f $PWD/.gitignore ]]; then
