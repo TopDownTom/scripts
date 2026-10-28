@@ -3,14 +3,18 @@
 
 root_file=${1%.*}
 lives_in_dir=$(dirname ${root_file}.tex)
+root_file_name=$(basename ${root_file}.tex)
 file_to_build="${root_file}.tex"
-file_to_show="${root_file}.pdf"
+file_to_show="${lives_in_dir}/pdfs/${root_file_name%.*}.pdf"
 
+artifact_dirs=( 'build' 'pdfs' )
 # If a latex 'build' directory does not exist, create it.
 # This helps keep the directory clean of all the compiled files.
-if [[ ! -d "${lives_in_dir}/build" ]]; then
-  mkdir -p "${lives_in_dir}/build"; mkdir_rc=$?
-fi
+for artifact in "${artifact_dirs[@]}"; do
+  if [[ ! -d "${lives_in_dir}/${artifact}" ]]; then
+    mkdir -p "${lives_in_dir}/${artifact}"; mkdir_rc=$?
+  fi
+done
 
 # Move the 'build' files
 function move_logs {
@@ -21,6 +25,11 @@ function move_logs {
       mv "${root_file}.${filetype}" "${lives_in_dir}/build/"; mv_rc=$?
     fi
   done
+
+  if [[ -f ${root_file}.pdf ]]; then
+    echo "We found ${root_file}.pdf...Moving to pdfs dir..."
+    mv "${root_file}.pdf" "${lives_in_dir}/pdfs/"; mv_rc=?
+  fi
 }
 
 # Check if a pdf of the file is already open. Zathura supports live-refreshing.
