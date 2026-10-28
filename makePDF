@@ -33,7 +33,7 @@ function move_logs {
 }
 
 # Check if a pdf of the file is already open. Zathura supports live-refreshing.
-if [[ $(pgrep -f "${PDFVIEWER} ${root_file}.pdf") ]]; then
+if [[ $(pgrep -f "${PDFVIEWER} ${file_to_show}") ]]; then
   echo "PDF already open. Rebuilding..."
   pdflatex "${file_to_build}"
   move_logs
