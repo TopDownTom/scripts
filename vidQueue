@@ -92,7 +92,7 @@ createLogging () {
 
 # if we don't pass a title for the video, get one from yt-dlp
 getFilename () {
-  filename=$(${ytdlp_bin} ${verbose_array[@]} "${link}" --print filename --skip-download 2> /dev/null)
+  filename=$(${ytdlp_bin} ${verbose_array[@]} "${link}" --print fulltitle --skip-download 2> /dev/null)
   # check if the filename has the extension at the end. if so, remove it
   for ext in "${extensions[@]}";
   do
@@ -136,15 +136,15 @@ constructDownloadCommand () {
   if [[ ${checkFormat_rc} != 0 ]]; then
     writeLog "We couldn't restrict the resolution to <2160, so we're letting yt-dlp take over"
     unset format
-    downloadCommand="${ytdlp_bin} ${verbose_array[@]} -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames"
+    downloadCommand="${ytdlp_bin} ${verbose_array[@]} --no-warnings -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames"
   else
     writeLog "Obtained requested lower-resolution format"
-    downloadCommand="${ytdlp_bin} ${verbose_array[@]} -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames \"${format}\""
+    downloadCommand="${ytdlp_bin} ${verbose_array[@]} --no-warnings -o \"${videoDir}/${filename}.%(ext)s\" --restrict-filenames \"${format}\""
   fi
 
   # Arbitrary sleep to prevent too many subsequent calls. Attempt to stop bot detection
-  writeLog "Sleeping 30s. I'm not a robot, I just play one on TV."
-  sleep 30
+  writeLog "Sleeping 10s. I'm not a robot, I just play one on TV."
+  sleep 10
 }
 
 download () {
