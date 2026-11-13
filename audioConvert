@@ -1,59 +1,225 @@
 #! /bin/bash
 
-searchDir=${1:-$PWD}
+# depends: pv ffmpeg
+if ! type -p pv ffmpeg 1>/dev/null; then
+  echo "Script requires pv and ffmpeg. Exiting!"
+  exit 1
+fi
 
-function checkPath() {
-  if [[ "${searchDir:0:1}" == "/" ]];
-  then
-    dirPath=${searchDir}
-  elif [[ $PWD == $searchDir ]];
-  then
-    dirPath=${searchDir}
+# what time did the script start?
+start_time=$(date +%s)
+
+## This script takes one or more filetypes and converts them using ffmpeg to a different format.
+## Special characters can get weird, though this script is supposed to handle them well via the `find` options.
+## Please be careful using the `-r` option, as that requires no approval and simply just removes the old files.
+## Return codes:
+##  - 0 everything went well
+##  - 1 you need to install `pv`
+##  - 2 you did something wrong and got pushed to the usage function
+
+if [[ -f "$HOME/.shell_colors" ]]; then
+  source $HOME/.shell_colors
+fi
+
+function usage() {
+  echo "Run the script as follows:"
+  echo "$(basename $0) [OPTS] [ARGS]"
+  echo "   -h  Display this help message and exit"
+  echo "  [-d] /path/to/search/dir. Defaults to PWD"
+  echo "  [-f] /path/to/single/file. No default, completely optional"
+  echo "   -i  One or more (csv) list of filetypes to convert. Ex: -i mp3,webm"
+  echo "   -o  The output filetype. Ex: -o mp4"
+  echo "   -r  Remove the old files after conversion"
+  echo "   -q  Quiet. Don't play the beep at the end"
+  exit 2
+}
+
+## var defaults
+# ffmpeg returns 0 if things went well
+ffmpeg_rc=1
+# the number of files to convert
+num_files=0
+# play the beep at the end
+quiet=0
+# do not remove old files
+remove=0
+# default the search directory to the pwd if `-d` is not given
+search_dir="${PWD}"
+
+## array declarations
+# these options are both required, and we use this array to check. add/remove more options to change this
+required_opts=( i o )
+# this array pairs with the required_opts array, see above
+declare -A given=()
+# an array of files ffmpeg will convert. can be one or multiple files.
+declare -a files_to_convert=()
+# the filetypes to convert, given by the user
+# TODO: allow negatives, i.e. '-i !mp3' to automatically find all files in the search_dir not in the desired filetype
+# TODO: allow specifying the output filetype only, and assume all other filetypes in search_dir should converge on that
+declare -a types_to_convert=()
+# this is a temporary array used only to verify the user gave no more than one filetype as the output type
+declare -a output_types=()
+
+# get options from the user
+while getopts ":d:f:hi:o:qr" opt; do
+  case ${opt} in
+    d) search_dir="${OPTARG}"; given[d]=1 ;;
+    f) file="${OPTARG}" ;;
+    i) in_types="${OPTARG}"; given[i]=1 ;;
+    o) out_type="${OPTARG}"; given[o]=1 ;;
+    q) quiet=1 ;;
+    r) remove=1 ;;
+    h) usage ;;
+    *) printf "Not sure what to do with given option \"-${OPTARG}\". Exiting.\n"; exit ;;
+  esac
+done
+
+# check that all required options have values
+for req_opt in "${required_opts[@]}"; do
+  if [[ ! ${given[${req_opt}]+x} ]]; then
+    printf "${YELLOW}Required option -%s was not given\n\n${NOCOL}" "${req_opt}" >&2
+    usage
+  fi
+done
+
+# take the csv of types and turn into array elements
+IFS=, read -a types_to_convert <<< ${in_types}
+# do the same for the output types
+IFS=, read -a output_types <<< ${out_type}
+
+# fail if user gave more than one output type format by checking the number of array elements. must be 1.
+if [[ ${#output_types[@]} -gt 1 ]]; then
+  printf "${YELLOW}Script does not support outputting to multiple filetypes!${NOCOL}\n"
+  echo "${output_types[@]}"
+  usage
+fi
+
+# check if the input type matches the type we want to convert to. they should be mutually exclusive.
+for ftype in "${types_to_convert}"; do
+  if [[ "${ftype,,}" == "${out_type,,}" ]]; then
+    printf "${YELLOW}Input type ${ftype} already matches your output type ${out_type}. Exiting.${NOCOL}\n"
+    usage
+  fi
+done
+
+# check if the search dir exists
+if [[ ! "${file}" && ! -d "${search_dir}" ]]; then
+  printf "${YELLOW}We couldn't find the path you gave: ${NOCOL}${search_dir}\n"
+  usage
+fi
+
+# check if the file, if given, exists
+if [[ ${file} && ! -f "${file}" ]]; then
+  printf "${YELLOW}Couldn't find this file: ${NOCOL}${file}\n"
+  usage
+fi
+
+# this function `find`s all files in the search_dir matching the filetype(s) we want to convert
+# invoked with -d option
+function build_file_list() {
+  for ftype in "${types_to_convert[@]}"; do
+    mapfile -t find_iter_files < <(find "${search_dir}" -type f -iname "*.${ftype}" -print0 | xargs -r -0 realpath)
+    files_to_convert+=("${find_iter_files[@]}")
+
+    # notify that one of the filetypes requested don't exist in the search dir
+    if [[ "${#find_iter_files}" -eq 0 ]]; then
+      printf "${YELLOW}We found no ${ftype} files. Is that expected? Continuing...${NOCOL}\n"
+    fi
+  done
+}
+
+# this function `find`s the specifically requested file
+# invoked with -f option
+function get_file() {
+  mapfile files_to_convert < <(find "${file}" -type f -print0 | xargs -r -0 realpath | tr -d '\n')
+}
+
+# convert the discovered files from types_to_convert to out_type
+function convert_file() {
+  # grab the file sent to the function
+  inbound_file="${1}"
+
+  # find the file's extension
+  if [[ "${inbound_file}" == *.* ]]; then
+    extension="${inbound_file##*.}"
   else
-    dirPath=$PWD/${searchDir}
+    extension=
+  fi
+
+  # check again to make sure we are converting something we expect to, based on the file extension
+  for ftypes in "${types_to_convert[@]}"; do
+    if [[ "${extension,,}" == "${ftypes,,}" ]]; then
+      matches_given_type=1
+    fi
+  done
+
+  # notify if we got something we didn't expect
+  # TODO: remove the inbound file from files_to_convert, for safety?
+  if [[ ${matches_given_type} -ne 1 ]]; then
+    printf "${YELLOW}We found a file and were unable to match it to one of the requested types to convert. Please review.${NOCOL}\n"
+    bad_files+=("${inbound_file}")
+  fi
+
+  # get the name of the file, sans filetype extension
+  file_name="${inbound_file%%.${extension}}"
+  pretty_in_name=$(basename "${inbound_file}")
+  pretty_out_name=$(basename "${file_name}").${out_type}
+
+
+  # make sure the file doesn't already exist in the format we want. do nothing if it exists.
+  # if not, convert the file to the desired filetype.
+  if [[ -f "${file_name}.${out_type}" ]]; then
+    printf "${YELLOW}This file is already the desired format. Not converting again:\n${NOCOL}  ${pretty_out_name}${NOCOL}\n"
+  else
+    printf "${BLUE}[${file_count}/${num_files}] Converting:${NOCOL} \"${pretty_in_name}\" ${BLUE}to ${NOCOL}\"${pretty_out_name}\"\n"
+    pv --format "%t %p %e" "${inbound_file}" | ffmpeg -i pipe:0 -hide_banner -nostats -loglevel panic -y "${file_name}.${out_type}"; ffmpeg_rc=$?
+#    ffmpeg -hide_banner -nostats -loglevel warning -y -i "${inbound_file}" "${file_name}.${out_type}"; ffmpeg_rc=$?
+  fi
+
+  # check if -r was given, and if so remove the inbound file, so long as it isn't a "mystery" file
+  if [[ ${remove} -eq 1 && ${matches_given_type} -eq 1 ]]; then
+    printf "    ${YELLOW}Removing:${NOCOL} \"${pretty_in_name}\"\n"
+    rm "${inbound_file}"; rm_rc=$?
   fi
 }
 
-function converter() {
-  cd "${dirPath}"
-  # Get the conversion formats
-  read -p "Filetype FROM: " typeFrom
-  read -p "Filetype TO: " typeTo
-  # Check if an incorrect starting format was given, exit if true
-  [[ -z `ls "${dirPath}" | grep ".$typeFrom"` ]] && echo "No files matching type $typeFrom, exiting..." && getOut="true" && return
-  # Loop through all files in $searchDir matching starting format, converting each
-  for file in *.$typeFrom;
-  do filename="${file%.$typeFrom}";
-    echo -e "Running: ffmpeg -hide_banner -nostats -loglevel warning -y -i "$file" "$filename.$typeTo"";
-    nice -18 ffmpeg -hide_banner -nostats -loglevel warning -y -i "$file" "$filename.$typeTo";
+# decide whether to find one file or multiple files
+if [[ ${file} ]]; then
+  get_file
+else
+  build_file_list
+fi
+
+# how many files we found getting the file list
+num_files=${#files_to_convert[@]}
+
+# check that we found work to do, otherwise skip
+if [[ ${num_files} -eq 0 ]]; then
+  printf "${RED}We found no files for your request. Please investigate!${NOCOL}\n"
+else
+  printf "We found ${GREEN}${num_files}${NOCOL} files in: ${search_dir}\n"
+  printf "${GREEN}Beginning process${NOCOL}\n"
+  file_count=1
+  # invoke the convertion for each file
+  # TODO: add concurrency
+  for file in "${files_to_convert[@]}"; do
+    convert_file "${file}"
+    ((file_count++))
   done
-  # Alert conversions finished
-  ( speaker-test -t sine -f 500 2 > /dev/null)& pid=$! ; sleep 0.4s ; kill -9 $pid 2>/dev/null & wait $pid 2>/dev/null
-  read -p "Files converted, press Enter to continue to removal"
-}
 
-function removeOld() {
-  # If incorrect starting format was given, exit immediately
-  [[ "$getOut" == "true" ]] && return
-  cd "${dirPath}"
-  # Show and confirm the current state of the directory prior to removal
-  echo -e "\n\nCurrent Directory:\n$(ls "${dirPath}" | column)\n"
-  read -p "Do you want to delete the original ($typeFrom) files? (y/N) " confirmDelete
-  # Unless 'y' specifically is given, exit to prevent accidental deletion
-  [[ "$confirmDelete" != "y" ]] && echo "Incorrect Key or 'N' Selected. Not Deleting..." && return
-  # Delete the files, then notify
-  find . -name "*.$typeFrom" -exec rm {} \;
-  echo "Files removed..exiting."
-}
+  # if we came across unknown files, print them
+  if [[ ${#bad_files[@]} -gt 0 ]]; then
+    printf "${YELLOW}Here are the files we found that didn't match your input filetypes [ $(echo ${types_to_convert[@]}) ]:${NOCOL}\n"
+    echo "  ${bad_files[@]}"
+  fi
 
-confirmed=false
-while ! $confirmed; do
-  # Show and confirm the current state of the directory
-  echo -e "\nFiles to convert:\n$(ls "$searchDir" | column)\n"
-  read -p "Do these files look correct? (y/N) " confirm
-  # If the directory is where you intend to be, proceed
-  [[ "$confirm" == "y" ]] && confirmed=true && checkPath && converter && removeOld && break
-  # If the directory is otherwise incorrect, choose N and exit this script
-  [[ "$confirm" == "N" ]] && break
-  echo "Please select \"y\" or \"N\""
-done
+  end_time=$(date +%s)
+  # notify when script is done
+  printf "${GREEN}Script finished, taking $((end_time-start_time))s.${NOCOL}\n"
+  # only beep if we've done any work
+  if [[ ${ffmpeg_rc} -eq 0 && ${quiet} -eq 0 ]]; then
+    ( speaker-test -t sine -f 500 2 > /dev/null)& pid=$! ; sleep 0.4s ; kill -9 $pid 2>/dev/null & wait $pid 2>/dev/null
+  fi
+fi
+
+## FIN
